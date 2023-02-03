@@ -18,6 +18,7 @@ import com.hcmut.test.R;
 
 public class ColorShaderProgram extends ShaderProgram {
     // Uniform locations
+    private final int uMatrixLocation;
     private final int uColorLocation;
 
     // Attribute locations
@@ -28,13 +29,15 @@ public class ColorShaderProgram extends ShaderProgram {
                 R.raw.simple_fragment_shader);
 
         // Retrieve uniform locations for the shader program.
+        uMatrixLocation = glGetUniformLocation(program, U_MATRIX);
         uColorLocation = glGetUniformLocation(program, U_COLOR);
 
         // Retrieve attribute locations for the shader program.
         aPositionLocation = glGetAttribLocation(program, A_POSITION);
     }
 
-    public void setUniforms(float r, float g, float b) {
+    public void setUniforms(float[] mvp,float r, float g, float b) {
+        glUniformMatrix4fv(uMatrixLocation, 1, false, mvp, 0);
         glUniform4f(uColorLocation, r, g, b, 1f);
     }
 
