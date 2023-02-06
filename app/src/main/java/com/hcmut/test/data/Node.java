@@ -1,6 +1,7 @@
 package com.hcmut.test.data;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 public class Node {
     public final float lat;
@@ -9,6 +10,11 @@ public class Node {
     public Node(float lat, float lon) {
         this.lat = lat;
         this.lon = lon;
+    }
+
+    @Override
+    public boolean equals(@Nullable Object obj) {
+        return obj instanceof Node && ((Node) obj).lat == lat && ((Node) obj).lon == lon;
     }
 
     @NonNull

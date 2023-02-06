@@ -12,6 +12,8 @@ import static android.opengl.GLES20.glGetAttribLocation;
 import static android.opengl.GLES20.glGetUniformLocation;
 import static android.opengl.GLES20.glUniform4f;
 import static android.opengl.GLES20.glUniformMatrix4fv;
+import static android.opengl.GLES20.glVertexAttrib1f;
+
 import android.content.Context;
 
 import com.hcmut.test.R;
@@ -36,8 +38,11 @@ public class ColorShaderProgram extends ShaderProgram {
         aPositionLocation = glGetAttribLocation(program, A_POSITION);
     }
 
-    public void setUniforms(float[] mvp,float r, float g, float b) {
+    public void setUniformMVP(float[] mvp) {
         glUniformMatrix4fv(uMatrixLocation, 1, false, mvp, 0);
+    }
+
+    public void setUniformColor(float r, float g, float b) {
         glUniform4f(uColorLocation, r, g, b, 1f);
     }
 

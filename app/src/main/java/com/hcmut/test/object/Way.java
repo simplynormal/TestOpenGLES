@@ -27,26 +27,6 @@ public class Way {
             nodes.add(new Node(vertices[i], vertices[i + 1]));
         }
     }
-//
-//    public boolean isClockwise() {
-//        float sum = 0;
-//        for (int i = 0; i < nodes.size() - 1; i++) {
-//            sum += (nodes.get(i + 1).lon - nodes.get(i).lon) * (nodes.get(i + 1).lat + nodes.get(i).lat);
-//        }
-//        return sum > 0;
-//    }
-//
-//    public void sortClockwise() {
-//        if (isClockwise()) return;
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-//            Node center = getCenter();
-//            nodes.sort((o1, o2) -> {
-//                float angle1 = (float) Math.atan2(o1.lat - center.lat, o1.lon - center.lon);
-//                float angle2 = (float) Math.atan2(o2.lat - center.lat, o2.lon - center.lon);
-//                return Float.compare(angle1, angle2);
-//            });
-//        }
-//    }
 
     public void addNode(Node node) {
         nodes.add(node);
@@ -54,6 +34,37 @@ public class Way {
 
     public boolean isClosed() {
         return nodes.get(0).equals(nodes.get(nodes.size() - 1));
+    }
+
+    public boolean isClockwise() {
+        float area = 0;
+        for (int i = 0; i < nodes.size() - 1; i++) {
+            area += (nodes.get(i + 1).lat - nodes.get(i).lat) * (nodes.get(i + 1).lon + nodes.get(i).lon);
+        }
+        return area < 0;
+    }
+
+    public void sortClockwise() {
+        if (isClockwise()) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            nodes.sort((o1, o2) -> {
+                float angle1 = (float) Math.atan2(o1.lat - nodes.get(0).lat, o1.lon - nodes.get(0).lon);
+                float angle2 = (float) Math.atan2(o2.lat - nodes.get(0).lat, o2.lon - nodes.get(0).lon);
+                return Float.compare(angle1, angle2);
+            });
+        } else {
+            for (int i = 0; i < nodes.size() - 1; i++) {
+                for (int j = i + 1; j < nodes.size(); j++) {
+                    float angle1 = (float) Math.atan2(nodes.get(i).lat - nodes.get(0).lat, nodes.get(i).lon - nodes.get(0).lon);
+                    float angle2 = (float) Math.atan2(nodes.get(j).lat - nodes.get(0).lat, nodes.get(j).lon - nodes.get(0).lon);
+                    if (angle1 > angle2) {
+                        Node temp = nodes.get(i);
+                        nodes.set(i, nodes.get(j));
+                        nodes.set(j, temp);
+                    }
+                }
+            }
+        }
     }
 
     public Node getCenter() {
