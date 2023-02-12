@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * 
- * @author Thomas Åhlén, thahlen@gmail.com
+ * @author Thomas, thahlen@gmail.com
  * 
  */
 public class TriangulationProcess implements Runnable

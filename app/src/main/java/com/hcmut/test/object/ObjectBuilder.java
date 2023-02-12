@@ -8,9 +8,18 @@
  ***/
 package com.hcmut.test.object;
 
+import static android.opengl.GLES20.GL_ALWAYS;
+import static android.opengl.GLES20.GL_EQUAL;
+import static android.opengl.GLES20.GL_INVERT;
+import static android.opengl.GLES20.GL_KEEP;
 import static android.opengl.GLES20.GL_LINES;
 import static android.opengl.GLES20.GL_TRIANGLES;
+import static android.opengl.GLES20.GL_TRIANGLE_STRIP;
+import static android.opengl.GLES20.glColorMask;
 import static android.opengl.GLES20.glDrawArrays;
+import static android.opengl.GLES20.glStencilFunc;
+import static android.opengl.GLES20.glStencilMask;
+import static android.opengl.GLES20.glStencilOp;
 
 import com.hcmut.test.data.Node;
 import com.hcmut.test.data.Triangle;
@@ -44,12 +53,31 @@ public class ObjectBuilder {
 
             Polygon polygon = new Polygon(points);
             float[] vertices = triangulate(polygon);
+            float[] angles = new float[polygon.getPoints().size()];
+
+            for (int i = 0; i < vertices.length; i += 9) {
+                float[] pointA = new float[]{vertices[i], vertices[i + 1]};
+                float[] pointB = new float[]{vertices[i + 3], vertices[i + 4]};
+                float[] pointC = new float[]{vertices[i + 6], vertices[i + 7]};
+
+                float angleA = (float) Math.abs(findAngle(new float[]{pointB[0] - pointA[0], pointB[1] - pointA[1]}, new float[]{pointC[0] - pointA[0], pointC[1] - pointA[1]}));
+                float angleB = (float) Math.abs(findAngle(new float[]{pointA[0] - pointB[0], pointA[1] - pointB[1]}, new float[]{pointC[0] - pointB[0], pointC[1] - pointB[1]}));
+                float angleC = (float) Math.abs(findAngle(new float[]{pointA[0] - pointC[0], pointA[1] - pointC[1]}, new float[]{pointB[0] - pointC[0], pointB[1] - pointC[1]}));
+
+                int indexA = polygon.getPoints().indexOf(new PolygonPoint(pointA[0], pointA[1]));
+                int indexB = polygon.getPoints().indexOf(new PolygonPoint(pointB[0], pointB[1]));
+                int indexC = polygon.getPoints().indexOf(new PolygonPoint(pointC[0], pointC[1]));
+
+                angles[indexA] += angleA;
+                angles[indexB] += angleB;
+                angles[indexC] += angleC;
+            }
 
             float[] newVertexData = new float[waysVertexData.length + vertices.length];
             System.arraycopy(waysVertexData, 0, newVertexData, 0, waysVertexData.length);
             System.arraycopy(vertices, 0, newVertexData, waysVertexData.length, vertices.length);
             waysVertexData = newVertexData;
-            findBorderPointPolygon(polygon, 0.02f);
+            findBorderPointPolygon(polygon, 0.005f, angles);
         }
     }
 
@@ -158,21 +186,27 @@ public class ObjectBuilder {
         return new float[]{x, y};
     }
 
-    private float[] findBorderPoint(float[] pointA, float[] pointB, float[] midPoint, float d) {
+    private float[] findBorderPoint(float[] pointA, float[] pointB, float[] midPoint, float d, float angle) {
         float[] rv1 = findLargeAngleBorderPoint(pointA, pointB, midPoint, d);
         float[] rv2 = findSmallAngleBorderPoint(pointA, pointB, midPoint, d);
+
+        if (angle < Math.PI) {
+            return new float[]{rv2[0], rv2[1], rv1[0], rv1[1]};
+        }
+
         return new float[]{rv1[0], rv1[1], rv2[0], rv2[1]};
     }
 
-    private void findBorderPointPolygon(Polygon polygon, float width) {
+    private void findBorderPointPolygon(Polygon polygon, float width, float[] angles) {
         List<TriangulationPoint> points = polygon.getPoints();
 
         for (int i = 0; i < points.size(); i++) {
             float[] pointA = new float[]{(float) points.get(i).getX(), (float) points.get(i).getY()};
             float[] pointB = new float[]{(float) points.get((i + 2) % points.size()).getX(), (float) points.get((i + 2) % points.size()).getY()};
             float[] midPoint = new float[]{(float) points.get((i + 1) % points.size()).getX(), (float) points.get((i + 1) % points.size()).getY()};
+            float angle = angles[(i + 1) % points.size()];
 
-            float[] border = findBorderPoint(pointA, pointB, midPoint, width);
+            float[] border = findBorderPoint(pointA, pointB, midPoint, width, angle);
             float[] newBorderVertexData = new float[borderVertexData.length + 6];
             System.arraycopy(borderVertexData, 0, newBorderVertexData, 0, borderVertexData.length);
             newBorderVertexData[borderVertexData.length] = border[0];
@@ -185,6 +219,7 @@ public class ObjectBuilder {
 
             if (!isDrawBorder) {
                 System.out.println("----------------------------------------");
+                System.out.println("Angle: " + angle * 180 / Math.PI);
                 System.out.println("Point A: " + pointA[0] + " " + pointA[1]);
                 System.out.println("Point B: " + pointB[0] + " " + pointB[1]);
                 System.out.println("Mid Point: " + midPoint[0] + " " + midPoint[1]);
@@ -193,6 +228,11 @@ public class ObjectBuilder {
                 System.out.println("----------------------------------------");
             }
         }
+
+        float[] newBorderVertexData = new float[borderVertexData.length + 6];
+        System.arraycopy(borderVertexData, 0, newBorderVertexData, 0, borderVertexData.length);
+        System.arraycopy(borderVertexData, 0, newBorderVertexData, borderVertexData.length, 6);
+        borderVertexData = newBorderVertexData;
     }
 
     public void draw(ColorShaderProgram colorProgram, float[] projectionMatrix) {
@@ -203,7 +243,7 @@ public class ObjectBuilder {
         if (!isDrawBorder) {
             isDrawBorder = true;
             for (int i = 0; i < borderVertexData.length; i += 3) {
-                System.out.println(borderVertexData[i] + " " + borderVertexData[i + 1] + " " + borderVertexData[i + 2]);
+                System.out.println(i / 3 + ": " + borderVertexData[i] + " " + borderVertexData[i + 1] + " " + borderVertexData[i + 2]);
             }
         }
 
@@ -215,7 +255,21 @@ public class ObjectBuilder {
         colorProgram.setUniformColor(0f, 1f, 0f);
         glDrawArrays(GL_TRIANGLES, borderVertexData.length / 3, waysVertexData.length / 3);
 
+//        glColorMask(false, false, false, false);
+//        glStencilMask(1);
+//        glStencilFunc(GL_ALWAYS, 0, 1);
+//        glStencilOp(GL_KEEP, GL_KEEP, GL_INVERT);
+//
+//        glDrawArrays(GL_TRIANGLE_STRIP, 0, borderVertexData.length / 3);
+//
+//        glColorMask(true, true, true, true);
+//        glStencilFunc(GL_EQUAL, 0, 1);
+//        glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+        
         colorProgram.setUniformColor(1f, 0f, 0f);
-        glDrawArrays(GL_LINES, 0, borderVertexData.length / 3);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, borderVertexData.length / 3);
+
+//        colorProgram.setUniformColor(0f, 0f, 1f);
+//        glDrawArrays(GL_LINES, 0, borderVertexData.length / 3);
     }
 }

@@ -35,7 +35,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             0.5f, -0.5f, 0f,
             0.5f, -0f, 0f,
             0f, 0f, 0f,
-            0f, 0.05f, 0f,
+//            0f, 0.05f, 0f,
             0.8f, 0.1f, 0f,
             0f, 0.4f, 0f,
             0f, 0.5f, 0f,
@@ -79,7 +79,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             way.addNode(new Node(vertices[i], vertices[i + 1]));
         }
         ObjectBuilder builder = new ObjectBuilder();
-        builder.addWay(way, 0f, 0f, 1f);
+        builder.addWay(way, 0.8f, 0f, 1f);
 
         builder.draw(colorProgram, projectionMatrix);
 
