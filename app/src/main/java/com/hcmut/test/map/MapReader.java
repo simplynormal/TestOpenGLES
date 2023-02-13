@@ -18,6 +18,10 @@ public class MapReader {
     private final XmlPullParser xpp;
     public final HashMap<String, Way> ways = new HashMap<>();
 
+    public Node center;
+    public float height;
+    public float width;
+
     public MapReader(Context ctx, int resource) throws XmlPullParserException {
         XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
         factory.setNamespaceAware(true);
@@ -40,10 +44,19 @@ public class MapReader {
                 if (eventType == XmlPullParser.START_TAG) {
                     String name = xpp.getName();
                     switch (name) {
+                        case "bounds":
+                            float minlon = Float.parseFloat(xpp.getAttributeValue(null, "minlon"));
+                            float maxlon = Float.parseFloat(xpp.getAttributeValue(null, "maxlon"));
+                            float minlat = Float.parseFloat(xpp.getAttributeValue(null, "minlat"));
+                            float maxlat = Float.parseFloat(xpp.getAttributeValue(null, "maxlat"));
+                            center = new Node((minlon + maxlon) / 2, (minlat + maxlat) / 2);
+                            height = maxlat - minlat;
+                            width = maxlon - minlon;
+                            break;
                         case "node":
                             nodes.put(xpp.getAttributeValue(null, "id"), new Node(
-                                    Float.parseFloat(xpp.getAttributeValue(null, "lat")),
-                                    Float.parseFloat(xpp.getAttributeValue(null, "lon"))
+                                    Float.parseFloat(xpp.getAttributeValue(null, "lon")),
+                                    Float.parseFloat(xpp.getAttributeValue(null, "lat"))
                             ));
                             break;
                         case "way":

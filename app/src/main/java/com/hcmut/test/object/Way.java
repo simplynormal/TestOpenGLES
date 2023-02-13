@@ -76,7 +76,7 @@ public class Way {
         }
         lat /= nodes.size();
         lon /= nodes.size();
-        return new Node(lat, lon);
+        return new Node(lon, lat);
     }
 
     public boolean isConvex() {

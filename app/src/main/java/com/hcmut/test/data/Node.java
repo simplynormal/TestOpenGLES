@@ -7,9 +7,9 @@ public class Node {
     public final float lat;
     public final float lon;
 
-    public Node(float lat, float lon) {
-        this.lat = lat;
+    public Node(float lon, float lat) {
         this.lon = lon;
+        this.lat = lat;
     }
 
     @Override
