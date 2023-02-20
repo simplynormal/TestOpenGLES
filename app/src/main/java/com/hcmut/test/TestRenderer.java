@@ -6,23 +6,16 @@ import android.content.Context;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
+import android.util.DisplayMetrics;
 
-import com.hcmut.test.data.Node;
-import com.hcmut.test.data.Triangle;
-import com.hcmut.test.data.VertexArray;
 import com.hcmut.test.map.MapReader;
 import com.hcmut.test.object.ObjectBuilder;
-import com.hcmut.test.object.Way;
+import com.hcmut.test.data.Way;
 import com.hcmut.test.programs.ColorShaderProgram;
 
-import org.poly2tri.Poly2Tri;
-import org.poly2tri.geometry.polygon.Polygon;
-import org.poly2tri.geometry.polygon.PolygonPoint;
-import org.poly2tri.triangulation.TriangulationPoint;
-import org.poly2tri.triangulation.delaunay.DelaunayTriangle;
 import org.xmlpull.v1.XmlPullParserException;
 
-import java.util.ArrayList;
+import java.util.List;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -43,6 +36,23 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             0f, 0.5f, 0f,
             -0.5f, 0.5f, 0f,
     };
+    private final float[] vertices1 = {
+            0.67853165f, -0.798109f, 0.0f,
+            0.67853165f, -0.5953837f, 0.0f,
+            0.67853165f, -0.57202446f, 0.0f
+    };
+    private final float[] vertices2 = {
+            -0.5f, 0.5f, 0f,
+            -0.5f, -0.5f, 0f,
+            0.5f, -0.5f, 0f,
+            0.5f, 0.5f, 0f,
+            -0.5f, 0.5f, 0f,
+    };
+
+    private float oldX = 0;
+    private float oldY = 0;
+    private float oldDistance = 0;
+
     private final float[] projectionMatrix = new float[16];
     private float originX = 0;
     private float originY = 0;
@@ -68,7 +78,45 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         originY = mapReader.center.lat;
         scale = 1f / mapReader.height;
 
+//        originX = 0;
+//        originY = 0;
+//        scale = 1f;
+
         System.out.println("Origin: " + originX + ", " + originY + ", scale: " + scale);
+    }
+
+    public void handleTouchDrag(float eventX, float eventY) {
+        // Get screen size
+        DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
+        float width = displayMetrics.widthPixels;
+
+        float newOriginX = oldX - eventX / scale / width * 2;
+        float newOriginY = oldY + eventY / scale / width * 2;
+        originX = newOriginX;
+        originY = newOriginY;
+    }
+
+    public void handleTouchPress(float eventX, float eventY) {
+        DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
+        float width = displayMetrics.widthPixels;
+
+        oldX = originX + eventX / scale / width * 2;
+        oldY = originY - eventY / scale / width * 2;
+    }
+
+    public void handleZoom(List<Float> eventXs, List<Float> eventYs) {
+        if (eventXs.size() != 2 || eventYs.size() != 2) {
+            return;
+        }
+        float newDistance = (float) Math.sqrt(Math.pow(eventXs.get(0) - eventXs.get(1), 2) + Math.pow(eventYs.get(0) - eventYs.get(1), 2));
+        float delta = oldDistance > 0 ? newDistance - oldDistance : 0;
+        oldDistance = newDistance;
+        scale += delta;
+        System.out.println("Zooming delta " + delta);
+    }
+
+    public void handleResetZoom() {
+        oldDistance = 0;
     }
 
     @Override
@@ -86,6 +134,13 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             Matrix.orthoM(projectionMatrix, 0, -1f, 1f, -aspectRatio, aspectRatio, -1f, 1f);
 //            scale = width / mapReader.height;
         }
+
+//        Matrix.scaleM(projectionMatrix, 0, 3f, 3f, 1f);
+//        Matrix.translateM(projectionMatrix, 0, 1f, 0f, 0f);
+
+        for (float matrix : projectionMatrix) {
+            System.out.print(matrix + ", ");
+        }
     }
 
     @Override
@@ -95,10 +150,8 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         GLES20.glEnable(GLES20.GL_STENCIL_TEST);
 
         ObjectBuilder builder = new ObjectBuilder();
-//        Way way = new Way(vertices);
-//        builder.addWay(way, 0.8f, 0f, 1f);
-//        builder.addWay(way, 0f, 0f, 1f);
-//        builder.addWay(way, 0f, 1.05f, 1f);
+//        Way way = new Way(vertices2);
+//        builder.addWay(way, originX, originY, scale);
 
         for (String key : mapReader.ways.keySet()) {
             Way way = mapReader.ways.get(key);

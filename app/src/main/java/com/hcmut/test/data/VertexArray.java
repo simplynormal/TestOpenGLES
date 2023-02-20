@@ -29,10 +29,10 @@ public class VertexArray {
     }
 
     public void setVertexAttribPointer(int dataOffset, int attributeLocation,
-                                       int componentCount, int stride) {
+                                       int componentCount, int strideInElements) {
         floatBuffer.position(dataOffset);
         glVertexAttribPointer(attributeLocation, componentCount, GL_FLOAT,
-                false, stride, floatBuffer);
+                false, strideInElements * BYTES_PER_FLOAT, floatBuffer);
         glEnableVertexAttribArray(attributeLocation);
 
         floatBuffer.position(0);

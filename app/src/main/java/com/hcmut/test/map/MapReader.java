@@ -4,7 +4,7 @@ import android.content.Context;
 import android.content.res.Resources;
 
 import com.hcmut.test.data.Node;
-import com.hcmut.test.object.Way;
+import com.hcmut.test.data.Way;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;

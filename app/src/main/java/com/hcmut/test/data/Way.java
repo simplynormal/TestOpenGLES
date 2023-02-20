@@ -1,14 +1,13 @@
-package com.hcmut.test.object;
+package com.hcmut.test.data;
 
-import android.opengl.GLES20;
 import android.os.Build;
 
 import androidx.annotation.NonNull;
 
-import com.hcmut.test.data.Node;
-import com.hcmut.test.data.Triangle;
+import com.hcmut.test.geometry.Point;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class Way {
     public final ArrayList<Node> nodes;
@@ -130,6 +129,22 @@ public class Way {
         vertices[vertices.length - 2] = (nodes.get(0).lat - originY) * scale;
         vertices[vertices.length - 1] = 0;
         return vertices;
+    }
+
+    public List<Point> toPoints() {
+        List<Point> points = new ArrayList<>();
+        for (Node node : nodes) {
+            points.add(new Point(node.lon, node.lat));
+        }
+        return points;
+    }
+
+    public List<Point> toPoints(float originX, float originY, float scale) {
+        List<Point> points = new ArrayList<>();
+        for (Node node : nodes) {
+            points.add(new Point((node.lon - originX) * scale, (node.lat - originY) * scale));
+        }
+        return points;
     }
 
     @NonNull
