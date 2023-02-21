@@ -12,6 +12,8 @@ import static android.opengl.GLES20.GL_TRIANGLES;
 import static android.opengl.GLES20.GL_TRIANGLE_STRIP;
 import static android.opengl.GLES20.glDrawArrays;
 
+import android.opengl.GLES20;
+
 import com.hcmut.test.data.Node;
 import com.hcmut.test.data.VertexArray;
 import com.hcmut.test.data.Way;
@@ -31,7 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ObjectBuilder {
-//    private float[] waysVertexData = new float[0];
+    //    private float[] waysVertexData = new float[0];
 //    private float[] linesVertexData = new float[0];
 //    private float[] borderVertexData = new float[0];
     private final float[] testVertexData = new float[]{
@@ -51,15 +53,6 @@ public class ObjectBuilder {
     private static boolean isDebug = true;
 
     public ObjectBuilder() {
-//        addOpenWay(new Way(testVertexData), -3f, 0f, 1 / 5f);
-
-//        if (isDebug) {
-//            System.out.println("====================================");
-//            for (int i = 0; i < linesVertexData.length; i += 3) {
-//                System.out.println(i / 3 + ": " + linesVertexData[i] + " " + linesVertexData[i + 1] + " " + linesVertexData[i + 2]);
-//            }
-//            System.out.println("====================================");
-//        }
     }
 
     public void addWay(Way way, float originX, float originY, float scale) {
@@ -100,10 +93,6 @@ public class ObjectBuilder {
             angles[indexC] += triangle.getAngleC();
         }
 
-//        List<Point> polygonPoints = new ArrayList<>();
-//        for (TriangulationPoint point : polygon.getPoints()) {
-//            polygonPoints.add(new Point((float) point.getX(), (float) point.getY()));
-//        }
         List<Point> polygonPoints = way.toPoints(originX, originY, scale).subList(0, way.toPoints().size() - 1);
         TriangleStrip newWay = findBorderPointPolygon(polygonPoints, 0.002f, angles);
         borderTriangleStrip.extend(newWay);
@@ -111,7 +100,7 @@ public class ObjectBuilder {
 
     public void addOpenWay(Way way, float originX, float originY, float scale) {
         List<Point> linePoints = way.toPoints(originX, originY, scale);
-        TriangleStrip newWay = findBorderPointLine(linePoints, 0.03f);
+        TriangleStrip newWay = findBorderPointLine(linePoints, 0.02f);
         lineTriangleStrip.extend(newWay);
     }
 
@@ -279,19 +268,23 @@ public class ObjectBuilder {
             }
         }
 
+        int aPositionLocation = colorProgram.getAttributeLocation(ColorShaderProgram.A_POSITION);
+        int uMatrixLocation = colorProgram.getUniformLocation(ColorShaderProgram.U_MATRIX);
+        int uColorLocation = colorProgram.getUniformLocation(ColorShaderProgram.U_COLOR);
+
         VertexArray vertexArray = new VertexArray(vertexData);
-        vertexArray.setVertexAttribPointer(0, colorProgram.getPositionAttributeLocation(), 3, 0);
+        vertexArray.setVertexAttribPointer(0, aPositionLocation, 3, 0);
 
         colorProgram.useProgram();
-        colorProgram.setUniformMVP(projectionMatrix);
-        colorProgram.setUniformColor(0.57f, 0.76f, 0.88f);
+        GLES20.glUniformMatrix4fv(uMatrixLocation, 1, false, projectionMatrix, 0);
+        GLES20.glUniform4f(uColorLocation, 0.57f, 0.76f, 0.88f, 1f);
         glDrawArrays(GL_TRIANGLES, borderVertexData.length / 3, waysVertexData.length / 3);
 
 
-        colorProgram.setUniformColor(0f, 0f, 0f);
+        GLES20.glUniform4f(uColorLocation, 0f, 0f, 0f, 1f);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, borderVertexData.length / 3);
 
-        colorProgram.setUniformColor(0.7f, 0.7f, 0.7f);
+        GLES20.glUniform4f(uColorLocation, 0.7f, 0.7f, 0.7f, 1f);
         glDrawArrays(GL_TRIANGLE_STRIP, (borderVertexData.length + waysVertexData.length) / 3, linesVertexData.length / 3);
 
 

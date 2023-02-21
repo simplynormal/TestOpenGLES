@@ -40,11 +40,11 @@ public class Triangle {
     }
 
     public float[] toVertexData() {
-        return new float[] {
-                p1.x, p1.y, p1.z,
-                p2.x, p2.y, p2.z,
-                p3.x, p3.y, p3.z
-        };
+        float[] result = new float[Point.getTotalComponentCount() * 3];
+        System.arraycopy(p1.toVertexData(), 0, result, 0, Point.getTotalComponentCount());
+        System.arraycopy(p2.toVertexData(), 0, result, Point.getTotalComponentCount(), Point.getTotalComponentCount());
+        System.arraycopy(p3.toVertexData(), 0, result, Point.getTotalComponentCount() * 2, Point.getTotalComponentCount());
+        return result;
     }
 
     @NonNull

@@ -47,11 +47,9 @@ public class TriangleStrip {
     }
 
     public float[] toVertexData() {
-        float[] result = new float[points.size() * 3];
+        float[] result = new float[points.size() * Point.getTotalComponentCount()];
         for (int i = 0; i < points.size(); i++) {
-            result[i * 3] = points.get(i).x;
-            result[i * 3 + 1] = points.get(i).y;
-            result[i * 3 + 2] = points.get(i).z;
+            System.arraycopy(points.get(i).toVertexData(), 0, result, i * Point.getTotalComponentCount(), Point.getTotalComponentCount());
         }
         return result;
     }
