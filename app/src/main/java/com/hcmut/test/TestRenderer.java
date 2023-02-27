@@ -8,10 +8,18 @@ import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 import android.util.DisplayMetrics;
 
+import com.hcmut.test.data.VertexArray;
+import com.hcmut.test.data.VertexData;
+import com.hcmut.test.geometry.LineStrip;
+import com.hcmut.test.geometry.Point;
+import com.hcmut.test.geometry.Polygon;
+import com.hcmut.test.geometry.Triangle;
+import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.map.MapReader;
 import com.hcmut.test.object.ObjectBuilder;
 import com.hcmut.test.data.Way;
 import com.hcmut.test.programs.ColorShaderProgram;
+import com.hcmut.test.utils.StrokeGenerator;
 
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -23,6 +31,7 @@ import javax.microedition.khronos.opengles.GL10;
 public class TestRenderer implements GLSurfaceView.Renderer {
     private final Context context;
     private ColorShaderProgram colorProgram;
+    private ObjectBuilder builder;
     MapReader mapReader;
     private final float[] vertices = {
             -0.5f, 0.5f, 0f,
@@ -37,14 +46,10 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             -0.5f, 0.5f, 0f,
     };
     private final float[] vertices1 = {
-            0.6655922f, -0.78607506f, 0.0f,
-            0.6655922f, -0.58334976f, 0.0f,
-            0.6655922f, -0.5599905f, 0.0f,
-            0.6633675f, -0.4804577f, 0.0f,
-            0.65891814f, -0.46627527f, 0.0f,
-            0.65001935f, -0.45237094f, 0.0f,
-            0.6322218f, -0.44458452f, 0.0f,
-            0.50318956f, -0.43540764f, 0.0f
+            0f, 0.5f, 0f,
+            0f, 0f, 0f,
+            -0.5f, 0f, 0f,
+            -0.5f, -0.5f, 0f,
     };
     private final float[] vertices2 = {
             -0.5f, 0.5f, 0f,
@@ -88,6 +93,31 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 //        scale = 1f;
 
 //        System.out.println("Origin: " + originX + ", " + originY + ", scale: " + scale);
+
+        builder = new ObjectBuilder();
+//        Way way = new Way(vertices1);
+//        builder.addWay(way, originX, originY, scale);
+
+        List<String> keyBlacklist = List.of(
+                "205341834",
+                "224935486",
+                "205957662",
+                "205342060",
+                "611427593"
+        );
+
+//        for (String key : mapReader.ways.keySet()) {
+//            Way way = mapReader.ways.get(key);
+//            if (way != null && !keyBlacklist.contains(key)) {
+//                System.out.println("Drawing way " + key);
+//                builder.addWay(way, originX, originY, scale);
+//            } else if (way != null && keyBlacklist.contains(key)) {
+//                System.out.println("Skipping way " + key + ": \n");
+//                for (Point p : way.toPoints(originX, originY, scale)) {
+//                    System.out.println("\t" + p.x + "f, " + p.y + "f, " + p.z + "f,");
+//                }
+//            }
+//        }
     }
 
     public void handleTouchDrag(float eventX, float eventY) {
@@ -150,48 +180,33 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_STENCIL_BUFFER_BIT);
         GLES20.glEnable(GLES20.GL_STENCIL_TEST);
 
-        ObjectBuilder builder = new ObjectBuilder();
-//        Way way = new Way(vertices1);
-//        builder.addWay(way, originX, originY, scale);
+//        builder.draw(colorProgram, projectionMatrix);
 
-        for (String key : mapReader.ways.keySet()) {
-            Way way = mapReader.ways.get(key);
-            if (way != null) {
-//                System.out.println("Drawing way " + key);
-                builder.addWay(way, originX, originY, scale);
-            }
+        VertexData.resetRandom();
+
+        Polygon rv = StrokeGenerator.generateStroke(new LineStrip(vertices1), 10, 0.1f);
+        TriangleStrip triangles = new TriangleStrip(rv.points);
+        TriangleStrip single = new TriangleStrip(vertices1);
+        triangles.points.addAll(single.points);
+
+//        float[] waysVertexData = triangles.size() > 0 ? new float[triangles.get(0).toVertexData().length * triangles.size()] : new float[0];
+//        for (int i = 0; i < triangles.size(); i++) {
+//            System.arraycopy(triangles.get(i).toVertexData(), 0, waysVertexData, i * triangles.get(i).toVertexData().length, triangles.get(i).toVertexData().length);
+//        }
+
+        int uMVPLocation = colorProgram.getUniformLocation(ColorShaderProgram.U_MATRIX);
+
+        VertexArray vertexArray = new VertexArray(triangles.toVertexData(0, 0, 0, 1));
+
+        int strideInElements = VertexData.getTotalComponentCount();
+        for (VertexData.VertexAttrib attrib : VertexData.getVertexAttribs()) {
+            int location = colorProgram.getAttributeLocation(attrib.name);
+            vertexArray.setVertexAttribPointer(attrib.offset, location, attrib.count, strideInElements);
         }
+        colorProgram.useProgram();
+        GLES20.glUniformMatrix4fv(uMVPLocation, 1, false, projectionMatrix, 0);
 
-        builder.draw(colorProgram, projectionMatrix);
-
-
-//        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 3, 6);
-
-//        GLES20.glColorMask(false, false, false, false);
-//        GLES20.glStencilMask(1);
-//        GLES20.glStencilFunc(GLES20.GL_ALWAYS, 0, 1);
-//        GLES20.glStencilOp(GLES20.GL_KEEP, GLES20.GL_KEEP, GLES20.GL_INVERT);
-//
-//        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3);
-//
-//        GLES20.glColorMask(true, true, true, true);
-//        GLES20.glStencilFunc(GLES20.GL_EQUAL, 1, 1);
-//        GLES20.glStencilOp(GLES20.GL_KEEP, GLES20.GL_KEEP, GLES20.GL_KEEP);
-
-//        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 3, 6);
-
-//        GLES20.glColorMask(false, false, false, false);
-//        GLES20.glStencilMask(1);
-//        GLES20.glStencilFunc(GLES20.GL_ALWAYS, 0, 1);
-//        GLES20.glStencilOp(GLES20.GL_KEEP, GLES20.GL_KEEP, GLES20.GL_INVERT);
-//
-//        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 9, 8);
-//
-//        GLES20.glColorMask(true, true, true, true);
-//        GLES20.glStencilFunc(GLES20.GL_EQUAL, 1, 1);
-//        GLES20.glStencilOp(GLES20.GL_KEEP, GLES20.GL_KEEP, GLES20.GL_KEEP);
-//
-//        colorProgram.setUniforms(projectionMatrix, 0f, 1f, 0f);
-//        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 9, 8);
+        GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, triangles.points.size() - single.points.size());
+        GLES20.glDrawArrays(GLES20.GL_POINTS, triangles.points.size() - single.points.size(), single.points.size());
     }
 }

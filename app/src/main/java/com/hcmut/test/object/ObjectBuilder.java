@@ -17,6 +17,7 @@ import android.opengl.GLES20;
 import com.hcmut.test.data.VertexArray;
 import com.hcmut.test.data.VertexData;
 import com.hcmut.test.data.Way;
+import com.hcmut.test.geometry.LineStrip;
 import com.hcmut.test.geometry.equation.LineEquation;
 import com.hcmut.test.geometry.Point;
 import com.hcmut.test.geometry.Triangle;
@@ -25,6 +26,7 @@ import com.hcmut.test.geometry.Vector;
 import com.hcmut.test.programs.ColorShaderProgram;
 
 import com.hcmut.test.geometry.Polygon;
+import com.hcmut.test.utils.StrokeGenerator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -85,8 +87,9 @@ public class ObjectBuilder {
     }
 
     public void addOpenWay2(Way way, float originX, float originY, float scale) {
-        List<Point> linePoints = way.toPoints(originX, originY, scale);
-        Polygon polygon = genPolylineFromLine(linePoints, 0.02f);
+        LineStrip linePoints = new LineStrip(way.toPoints(originX, originY, scale));
+//        Polygon polygon = genPolylineFromLine(linePoints, 0.02f);
+        Polygon polygon = StrokeGenerator.generateStroke(linePoints, 8, 0.02f);
         List<Triangle> curTriangulatedTriangles = polygon.triangulate();
         triangles.addAll(curTriangulatedTriangles);
         TriangleStrip newWay = genBorderFromPolygon(polygon, curTriangulatedTriangles, 0.002f);
@@ -299,6 +302,7 @@ public class ObjectBuilder {
     }
 
     public void draw(ColorShaderProgram colorProgram, float[] projectionMatrix) {
+        VertexData.resetRandom();
         float[] waysVertexData = triangles.size() > 0 ? new float[triangles.get(0).toVertexData().length * triangles.size()] : new float[0];
         for (int i = 0; i < triangles.size(); i++) {
             System.arraycopy(triangles.get(i).toVertexData(), 0, waysVertexData, i * triangles.get(i).toVertexData().length, triangles.get(i).toVertexData().length);

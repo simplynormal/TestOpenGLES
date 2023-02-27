@@ -62,6 +62,7 @@ public class MainActivity extends Activity {
     @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        Test.main();
         // Turn off the window's title bar
         requestWindowFeature(Window.FEATURE_NO_TITLE);
 
@@ -140,8 +141,6 @@ public class MainActivity extends Activity {
             }
         });
         setContentView(mGLSurfaceView);
-
-        Test.main();
     }
 
     @Override

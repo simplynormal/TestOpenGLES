@@ -25,6 +25,13 @@ public class TriangleStrip {
         this.points = List.of(p1, p2, p3);
     }
 
+    public TriangleStrip(float[] points) {
+        this.points = new ArrayList<>();
+        for (int i = 0; i < points.length; i += 3) {
+            this.points.add(new Point(points[i], points[i + 1], points[i + 2]));
+        }
+    }
+
     public TriangleStrip add(Point p) {
         this.points.add(p);
         return this;

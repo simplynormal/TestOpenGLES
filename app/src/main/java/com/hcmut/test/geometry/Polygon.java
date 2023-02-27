@@ -86,7 +86,7 @@ public class Polygon {
         return new com.menecats.polybool.models.Polygon(List.of(polyboolPoints));
     }
 
-    public void union(Polygon polygon) {
+    public Polygon union(Polygon polygon) {
         Epsilon eps = epsilon();
 
         com.menecats.polybool.models.Polygon self = toPolyboolPolygon();
@@ -94,7 +94,7 @@ public class Polygon {
 
         com.menecats.polybool.models.Polygon result = PolyBool.union(eps, self, other);
 
-        points.clear();
+        List<Point> points = new ArrayList<>();
         for (List<double[]> region : result.getRegions()) {
             for (double[] point : region) {
                 points.add(new Point((float) point[0], (float) point[1]));
@@ -102,5 +102,52 @@ public class Polygon {
         }
 
         points.add(points.get(0));
+        return new Polygon(points);
+    }
+
+    public Polygon intersect(Polygon polygon) {
+        Epsilon eps = epsilon();
+
+        com.menecats.polybool.models.Polygon self = toPolyboolPolygon();
+        com.menecats.polybool.models.Polygon other = polygon.toPolyboolPolygon();
+
+        com.menecats.polybool.models.Polygon result = PolyBool.intersect(eps, self, other);
+
+        List<Point> points = new ArrayList<>();
+        for (List<double[]> region : result.getRegions()) {
+            for (double[] point : region) {
+                points.add(new Point((float) point[0], (float) point[1]));
+            }
+        }
+
+        points.add(points.get(0));
+        return new Polygon(points);
+    }
+
+    public Polygon removeHoles() {
+        Epsilon eps = epsilon();
+        com.menecats.polybool.models.Polygon self = toPolyboolPolygon();
+
+        com.menecats.polybool.models.Polygon union = PolyBool.intersect(eps, self, self);
+
+        List<List<double[]>> regions = union.getRegions();
+        com.menecats.polybool.models.Polygon newUnion = null;
+        while (regions.size() > 1) {
+            newUnion = polygon(regions.get(0));
+            for (int i = 1; i < regions.size(); i++) {
+                newUnion = PolyBool.union(eps, newUnion, polygon(regions.get(i)));
+            }
+            regions = newUnion.getRegions();
+        }
+
+        List<Point> points = new ArrayList<>();
+        for (List<double[]> region : newUnion.getRegions()) {
+            for (double[] point : region) {
+                points.add(new Point((float) point[0], (float) point[1]));
+            }
+        }
+
+        points.add(points.get(0));
+        return new Polygon(points);
     }
 }
