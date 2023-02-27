@@ -37,9 +37,14 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             -0.5f, 0.5f, 0f,
     };
     private final float[] vertices1 = {
-            0.67853165f, -0.798109f, 0.0f,
-            0.67853165f, -0.5953837f, 0.0f,
-            0.67853165f, -0.57202446f, 0.0f
+            0.6655922f, -0.78607506f, 0.0f,
+            0.6655922f, -0.58334976f, 0.0f,
+            0.6655922f, -0.5599905f, 0.0f,
+            0.6633675f, -0.4804577f, 0.0f,
+            0.65891814f, -0.46627527f, 0.0f,
+            0.65001935f, -0.45237094f, 0.0f,
+            0.6322218f, -0.44458452f, 0.0f,
+            0.50318956f, -0.43540764f, 0.0f
     };
     private final float[] vertices2 = {
             -0.5f, 0.5f, 0f,
@@ -82,7 +87,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 //        originY = 0;
 //        scale = 1f;
 
-        System.out.println("Origin: " + originX + ", " + originY + ", scale: " + scale);
+//        System.out.println("Origin: " + originX + ", " + originY + ", scale: " + scale);
     }
 
     public void handleTouchDrag(float eventX, float eventY) {
@@ -112,7 +117,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         float delta = oldDistance > 0 ? newDistance - oldDistance : 0;
         oldDistance = newDistance;
         scale += delta;
-        System.out.println("Zooming delta " + delta);
+//        System.out.println("Zooming delta " + delta);
     }
 
     public void handleResetZoom() {
@@ -137,10 +142,6 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
 //        Matrix.scaleM(projectionMatrix, 0, 3f, 3f, 1f);
 //        Matrix.translateM(projectionMatrix, 0, 1f, 0f, 0f);
-
-        for (float matrix : projectionMatrix) {
-            System.out.print(matrix + ", ");
-        }
     }
 
     @Override
@@ -150,13 +151,15 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         GLES20.glEnable(GLES20.GL_STENCIL_TEST);
 
         ObjectBuilder builder = new ObjectBuilder();
-//        Way way = new Way(vertices2);
+//        Way way = new Way(vertices1);
 //        builder.addWay(way, originX, originY, scale);
 
         for (String key : mapReader.ways.keySet()) {
             Way way = mapReader.ways.get(key);
-            if (way != null)
+            if (way != null) {
+//                System.out.println("Drawing way " + key);
                 builder.addWay(way, originX, originY, scale);
+            }
         }
 
         builder.draw(colorProgram, projectionMatrix);

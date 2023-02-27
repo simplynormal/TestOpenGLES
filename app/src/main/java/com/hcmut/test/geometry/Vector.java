@@ -98,8 +98,12 @@ public class Vector {
         return new Vector(-this.x, -this.y, -this.z);
     }
 
-    public static float angle(Vector v1, Vector v2) {
-        return (float) Math.acos(v1.dot(v2) / (v1.length() * v2.length()));
+    public float angle(Vector v) {
+        return (float) Math.acos(this.dot(v) / (this.length() * v.length()));
+    }
+
+    public boolean isInBetween(Vector v1, Vector v2) {
+        return v1.cross(this).z * v1.cross(v2).z >= 0 && v2.cross(this).z * v2.cross(v1).z >= 0;
     }
 
     @NonNull

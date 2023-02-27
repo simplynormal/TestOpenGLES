@@ -1,7 +1,9 @@
-package com.hcmut.test.geometry;
+package com.hcmut.test.geometry.equation;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+
+import com.hcmut.test.geometry.Point;
+import com.hcmut.test.geometry.Vector;
 
 public class LineEquation {
     // ax + by + c = 0

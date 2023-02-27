@@ -10,7 +10,6 @@ package com.hcmut.test.programs;
 
 import static android.opengl.GLES20.glGetAttribLocation;
 import static android.opengl.GLES20.glGetUniformLocation;
-import static android.opengl.GLES20.glUniform4f;
 import static android.opengl.GLES20.glUniformMatrix4fv;
 
 import android.content.Context;
@@ -22,12 +21,12 @@ import java.util.HashMap;
 public class ColorShaderProgram extends ShaderProgram {
     // Uniform locations
     private final int uMatrixLocation;
-    private final int uColorLocation;
 
     // Attribute locations
     private final int aPositionLocation;
-    private HashMap<String, Integer> mUniformLocations = new HashMap<String, Integer>();
-    private HashMap<String, Integer> mAttributeLocations = new HashMap<String, Integer>();
+    private final int aColorLocation;
+    private final HashMap<String, Integer> mUniformLocations = new HashMap<String, Integer>();
+    private final HashMap<String, Integer> mAttributeLocations = new HashMap<String, Integer>();
 
     public ColorShaderProgram(Context context) {
         super(context, R.raw.vert_shader,
@@ -35,15 +34,15 @@ public class ColorShaderProgram extends ShaderProgram {
 
         // Retrieve uniform locations for the shader program.
         uMatrixLocation = glGetUniformLocation(program, U_MATRIX);
-        uColorLocation = glGetUniformLocation(program, U_COLOR);
 
         mUniformLocations.put(U_MATRIX, uMatrixLocation);
-        mUniformLocations.put(U_COLOR, uColorLocation);
 
         // Retrieve attribute locations for the shader program.
         aPositionLocation = glGetAttribLocation(program, A_POSITION);
+        aColorLocation = glGetAttribLocation(program, A_COLOR);
 
         mAttributeLocations.put(A_POSITION, aPositionLocation);
+        mAttributeLocations.put(A_COLOR, aColorLocation);
     }
 
 //    public void setUniformMVP(float[] mvp) {

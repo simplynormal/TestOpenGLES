@@ -140,6 +140,8 @@ public class MainActivity extends Activity {
             }
         });
         setContentView(mGLSurfaceView);
+
+        Test.main();
     }
 
     @Override

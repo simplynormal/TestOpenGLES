@@ -3,6 +3,9 @@ package com.hcmut.test.geometry;
 import androidx.annotation.NonNull;
 
 import com.hcmut.test.data.Node;
+import com.hcmut.test.data.VertexData;
+
+import java.util.ArrayList;
 
 public class Triangle {
     public final Point p1;
@@ -24,27 +27,39 @@ public class Triangle {
     public float getAngleA() {
         Vector v1 = new Vector(p1, p2);
         Vector v2 = new Vector(p1, p3);
-        return Vector.angle(v1, v2);
+        return v1.angle(v2);
     }
 
     public float getAngleB() {
         Vector v1 = new Vector(p2, p1);
         Vector v2 = new Vector(p2, p3);
-        return Vector.angle(v1, v2);
+        return v1.angle(v2);
     }
 
     public float getAngleC() {
         Vector v1 = new Vector(p3, p1);
         Vector v2 = new Vector(p3, p2);
-        return Vector.angle(v1, v2);
+        return v1.angle(v2);
     }
 
     public float[] toVertexData() {
-        float[] result = new float[Point.getTotalComponentCount() * 3];
-        System.arraycopy(p1.toVertexData(), 0, result, 0, Point.getTotalComponentCount());
-        System.arraycopy(p2.toVertexData(), 0, result, Point.getTotalComponentCount(), Point.getTotalComponentCount());
-        System.arraycopy(p3.toVertexData(), 0, result, Point.getTotalComponentCount() * 2, Point.getTotalComponentCount());
-        return result;
+        return VertexData.toVertexData(new ArrayList<>() {
+            {
+                add(p1);
+                add(p2);
+                add(p3);
+            }
+        }, true);
+    }
+
+    public float[] toVertexData(float r, float g, float b, float a) {
+        return VertexData.toVertexData(new ArrayList<>() {
+            {
+                add(p1);
+                add(p2);
+                add(p3);
+            }
+        }, r, g, b, a);
     }
 
     @NonNull

@@ -3,22 +3,14 @@ package com.hcmut.test.geometry;
 import android.opengl.GLES20;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import com.hcmut.test.data.VertexData;
 
 public class Point {
     public final float x;
     public final float y;
     public final float z;
-    public static final int[] VERTEX_ATTRIBS = new int[]{
-            GLES20.GL_FLOAT, 3,
-    };
-
-    public static int getTotalComponentCount() {
-        int result = 0;
-        for (int i = 0; i < VERTEX_ATTRIBS.length; i += 2) {
-            result += VERTEX_ATTRIBS[i + 1];
-        }
-        return result;
-    }
 
     public Point(float x, float y, float z) {
         this.x = x;
@@ -49,7 +41,11 @@ public class Point {
     }
 
     public float[] toVertexData() {
-        return new float[]{x, y, z};
+        return VertexData.toVertexData(this, true);
+    }
+
+    public float[] toVertexData(float r, float g, float b, float a) {
+        return VertexData.toVertexData(this, r, g, b, a);
     }
 
     @NonNull
@@ -60,5 +56,10 @@ public class Point {
                 ", y=" + y +
                 ", z=" + z +
                 '}';
+    }
+
+    @Override
+    public boolean equals(@Nullable Object obj) {
+        return obj instanceof Point && ((Point) obj).x == x && ((Point) obj).y == y && ((Point) obj).z == z;
     }
 }
