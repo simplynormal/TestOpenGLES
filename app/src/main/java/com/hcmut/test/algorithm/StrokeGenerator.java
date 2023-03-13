@@ -1,67 +1,24 @@
-package com.hcmut.test.utils;
+package com.hcmut.test.algorithm;
+
+import static com.menecats.polybool.helpers.PolyBoolHelper.epsilon;
 
 import android.util.Pair;
 
+import com.hcmut.test.geometry.Line;
 import com.hcmut.test.geometry.LineStrip;
 import com.hcmut.test.geometry.Point;
 import com.hcmut.test.geometry.Polygon;
 import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.geometry.Vector;
+import com.hcmut.test.geometry.equation.LineEquation;
+import com.menecats.polybool.Epsilon;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class StrokeGenerator {
-    private static boolean DEBUG = true;
-
-//    public static Point getIntersection(Point p1, Point p2, Point p3, Point p4) {
-//        float m1 = (p2.y - p1.y) / (p2.x - p1.x);
-//        float b1 = p1.y - m1 * p1.x;
-//        float m2 = (p4.y - p3.y) / (p4.x - p3.x);
-//        float b2 = p3.y - m2 * p3.x;
-//
-//        if (Float.compare(m1, m2) == 0) {
-//            // lines are parallel, no intersection
-//            return null;
-//        }
-//
-//        float x = (b2 - b1) / (m1 - m2);
-//
-//        if (x < Math.min(p1.x, p2.x) || x > Math.max(p1.x, p2.x) || x < Math.min(p3.x, p4.x) || x > Math.max(p3.x, p4.x)) {
-//            // intersection point is outside the range of the line segments
-//            return null;
-//        }
-//
-//        float y = m1 * x + b1;
-//
-//        if (y < Math.min(p1.y, p2.y) || y > Math.max(p1.y, p2.y) || y < Math.min(p3.y, p4.y) || y > Math.max(p3.y, p4.y)) {
-//            // intersection point is outside the range of the line segments
-//            return null;
-//        }
-//
-//        return new Point(x, y);
-//    }
-
-    public static Point getIntersection(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4) {
-        float denominator = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
-        if (denominator == 0.0) { // Lines are parallel.
-            return null;
-        }
-        float ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denominator;
-        float ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denominator;
-        if (ua >= 0.0f && ua <= 1.0f && ub >= 0.0f && ub <= 1.0f) {
-            // Get the intersection point.
-            return new Point((x1 + ua * (x2 - x1)), (y1 + ua * (y2 - y1)));
-        }
-
-        return null;
-    }
-
-    public static Point getIntersection(Point[] line1, Point[] line2) {
-        return getIntersection(line1[0].x, line1[0].y, line1[1].x, line1[1].y, line2[0].x, line2[0].y, line2[1].x, line2[1].y);
-    }
-
+    private static boolean DEBUG = false;
 
     private static class PolygonalBrush {
         private List<Point> points;
@@ -192,16 +149,16 @@ public class StrokeGenerator {
     }
 
     private static Pair<List<Point>, List<Point>> validateIntersection(List<Point> lastFirstTangentVertices1, List<Point> lastFirstTangentVertices2, List<Point> lastSecondTangentVertices1, List<Point> lastSecondTangentVertices2, Pair<List<Point>, List<Point>> tangentVertices) {
-        Point[] firstLine1 = new Point[]{lastFirstTangentVertices2.get(lastFirstTangentVertices2.size() - 1), lastFirstTangentVertices1.get(0)};
-        Point[] firstLine2 = new Point[]{lastFirstTangentVertices1.get(lastFirstTangentVertices1.size() - 1), tangentVertices.first.get(0)};
-        Point[] secondLine1 = new Point[]{lastSecondTangentVertices2.get(lastSecondTangentVertices2.size() - 1), lastSecondTangentVertices1.get(0)};
-        Point[] secondLine2 = new Point[]{lastSecondTangentVertices1.get(lastSecondTangentVertices1.size() - 1), tangentVertices.second.get(0)};
+        Line firstLine1 = new Line(lastFirstTangentVertices2.get(lastFirstTangentVertices2.size() - 1), lastFirstTangentVertices1.get(0));
+        Line firstLine2 = new Line(lastFirstTangentVertices1.get(lastFirstTangentVertices1.size() - 1), tangentVertices.first.get(0));
+        Line secondLine1 = new Line(lastSecondTangentVertices2.get(lastSecondTangentVertices2.size() - 1), lastSecondTangentVertices1.get(0));
+        Line secondLine2 = new Line(lastSecondTangentVertices1.get(lastSecondTangentVertices1.size() - 1), tangentVertices.second.get(0));
 
-        Point firstIntersection = getIntersection(firstLine1, firstLine2);
-        Point secondIntersection = getIntersection(secondLine1, secondLine2);
+        Point firstIntersection = firstLine1.intersect(firstLine2);
+        Point secondIntersection = secondLine1.intersect(secondLine2);
 
-        boolean isFirstIntersectionAtEnd = firstIntersection != null && (firstIntersection.equals(firstLine1[1]) || firstIntersection.equals(firstLine2[1]));
-        boolean isSecondIntersectionAtEnd = secondIntersection != null && (secondIntersection.equals(secondLine1[1]) || secondIntersection.equals(secondLine2[1]));
+        boolean isFirstIntersectionAtEnd = firstIntersection != null && (firstIntersection.equals(firstLine1.p2) || firstIntersection.equals(firstLine2.p2));
+        boolean isSecondIntersectionAtEnd = secondIntersection != null && (secondIntersection.equals(secondLine1.p2) || secondIntersection.equals(secondLine2.p2));
 
         List<Point> first;
         List<Point> second;
@@ -220,6 +177,56 @@ public class StrokeGenerator {
         }
 
         return new Pair<>(first, second);
+    }
+
+    public static Polygon removeRearHoles(Polygon p) {
+        int i = 0;
+        // Copy the list so that we can modify it
+        List<Point> points = new ArrayList<>(p.points);
+        points.remove(points.size() - 1);
+        while (i < points.size()) {
+            Point p1 = points.get(i);
+            Point p2 = points.get((i + 1) % points.size());
+
+            int n = points.size();
+            for (int j = (i + 2) % n; j != (i - 1 + n) % n; j = (j + 1) % n) {
+                Point p3 = points.get(j % n);
+                Point p4 = points.get((j + 1) % n);
+                Point intersection = Line.getIntersection(p1, p2, p3, p4);
+                if (intersection != null) {
+                    List<Point> pointsFromJToI = new ArrayList<>();
+                    if (j < i) {
+                        pointsFromJToI.addAll(points.subList(j + 1, i));
+                    } else {
+                        pointsFromJToI.addAll(points.subList(j + 1, n));
+                        pointsFromJToI.addAll(points.subList(0, i + 1));
+                    }
+                    pointsFromJToI.add(pointsFromJToI.get(0));
+                    Polygon polyFromJToI = new Polygon(pointsFromJToI);
+                    boolean isJIInside = polyFromJToI.doesContain(p3);
+
+                    if (!isJIInside) {
+                        // Remove points from j + 1 to i
+                        for (int k = 0; k < ((i - j + n) % n); k++) {
+                            points.remove((j + 1) % points.size());
+                        }
+                        points.add((j + 1) % points.size(), intersection);
+                    } else {
+                        // Remove points from i + 1 to j
+                        for (int k = 0; k < ((j - i + n) % n); k++) {
+                            points.remove((i + 1) % points.size());
+                        }
+                        points.add((i + 1) % points.size(), intersection);
+                    }
+                    break;
+                }
+            }
+
+            i++;
+        }
+        points.add(points.get(0));
+
+        return new Polygon(points);
     }
 
     private static Polygon generateStroke(LineStrip line, PolygonalBrush brush) {
@@ -266,6 +273,7 @@ public class StrokeGenerator {
         vertices.add(vertices.get(0));
 
         Polygon rv = new Polygon(vertices);
+        rv = removeRearHoles(rv);
 
         if (DEBUG) {
             for (Point p : rv.points) {
@@ -282,12 +290,5 @@ public class StrokeGenerator {
     }
 
     public static void test() {
-//        Point p1 = new Point(0, 0);
-//        Point q1 = new Point(-1, 1);
-//        Point p2 = new Point(1, 0);
-//        Point q2 = new Point(0, 1);
-//
-//        Point intersection = findIntersection(p1, q1, p2, q2);
-//        System.out.println("Intersection: " + intersection);
     }
 }

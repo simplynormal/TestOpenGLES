@@ -12,6 +12,8 @@ import static android.opengl.GLES20.GL_FLOAT;
 import static android.opengl.GLES20.glEnableVertexAttribArray;
 import static android.opengl.GLES20.glVertexAttribPointer;
 
+import com.hcmut.test.programs.ShaderProgram;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -36,5 +38,13 @@ public class VertexArray {
         glEnableVertexAttribArray(attributeLocation);
 
         floatBuffer.position(0);
+    }
+
+    public void setDataFromVertexData(ShaderProgram shaderProgram) {
+        int strideInElements = VertexData.getTotalComponentCount();
+        for (VertexData.VertexAttrib attrib : VertexData.getVertexAttribs()) {
+            int location = shaderProgram.getAttributeLocation(attrib.name);
+            setVertexAttribPointer(attrib.offset, location, attrib.count, strideInElements);
+        }
     }
 }

@@ -19,12 +19,10 @@ import com.hcmut.test.R;
 import java.util.HashMap;
 
 public class ColorShaderProgram extends ShaderProgram {
-    // Uniform locations
-    private final int uMatrixLocation;
+    public static final String U_MATRIX = "u_Matrix";
+    public static final String A_POSITION = "a_Position";
+    public static final String A_COLOR = "a_Color";
 
-    // Attribute locations
-    private final int aPositionLocation;
-    private final int aColorLocation;
     private final HashMap<String, Integer> mUniformLocations = new HashMap<String, Integer>();
     private final HashMap<String, Integer> mAttributeLocations = new HashMap<String, Integer>();
 
@@ -33,29 +31,19 @@ public class ColorShaderProgram extends ShaderProgram {
                 R.raw.frag_shader);
 
         // Retrieve uniform locations for the shader program.
-        uMatrixLocation = glGetUniformLocation(program, U_MATRIX);
+        // Uniform locations
+        int uMatrixLocation = glGetUniformLocation(program, U_MATRIX);
 
         mUniformLocations.put(U_MATRIX, uMatrixLocation);
 
         // Retrieve attribute locations for the shader program.
-        aPositionLocation = glGetAttribLocation(program, A_POSITION);
-        aColorLocation = glGetAttribLocation(program, A_COLOR);
+        // Attribute locations
+        int aPositionLocation = glGetAttribLocation(program, A_POSITION);
+        int aColorLocation = glGetAttribLocation(program, A_COLOR);
 
         mAttributeLocations.put(A_POSITION, aPositionLocation);
         mAttributeLocations.put(A_COLOR, aColorLocation);
     }
-
-//    public void setUniformMVP(float[] mvp) {
-//        glUniformMatrix4fv(uMatrixLocation, 1, false, mvp, 0);
-//    }
-//
-//    public void setUniformColor(float r, float g, float b) {
-//        glUniform4f(uColorLocation, r, g, b, 1f);
-//    }
-//
-//    public int getPositionAttributeLocation() {
-//        return aPositionLocation;
-//    }
 
     public int getUniformLocation(String uniformName) {
         Integer location = mUniformLocations.get(uniformName);

@@ -1,7 +1,5 @@
 package com.hcmut.test.data;
 
-import android.opengl.GLES20;
-
 import com.hcmut.test.geometry.Point;
 import com.hcmut.test.programs.ColorShaderProgram;
 

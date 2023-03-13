@@ -8,6 +8,7 @@ import com.hcmut.test.geometry.Vector;
 public class LineEquation {
     // ax + by + c = 0
     private final float a, b, c;
+    private static final float EPSILON = 1e-6f;
 
     public LineEquation(float a, float b, float c) {
         this.a = a;
@@ -40,13 +41,12 @@ public class LineEquation {
 
     public boolean hasPoint(Point p) {
         float rv = a * p.x + b * p.y + c;
-        // if rv is too small, it is considered as 0
-        return Math.abs(rv) < 1e-6;
+        return Math.abs(rv) < EPSILON;
     }
 
     public static Point intersect(LineEquation line1, LineEquation line2) {
         float det = line1.a * line2.b - line2.a * line1.b;
-        if (Math.abs(det) < 1e-6) {
+        if (Math.abs(det) < EPSILON) {
             return null;
         }
         float x = (line1.b * line2.c - line2.b * line1.c) / det;

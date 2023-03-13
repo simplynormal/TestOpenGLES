@@ -9,23 +9,13 @@
 package com.hcmut.test.programs;
 
 import static android.opengl.GLES20.glUseProgram;
+
 import android.content.Context;
 
 import com.hcmut.test.utils.ShaderHelper;
 import com.hcmut.test.utils.TextResourceReader;
 
-abstract class ShaderProgram {
-    // Uniform constants
-    public static final String U_MATRIX = "u_Matrix";
-    public static final String U_COLOR = "u_Color";
-    public static final String U_TEXTURE_UNIT = "u_TextureUnit";
-
-    // Attribute constants
-    public static final String A_POSITION = "a_Position";
-    public static final String A_COLOR = "a_Color";
-    public static final String A_TEXTURE_COORDINATES = "a_TextureCoordinates";
-
-    // Shader program
+public abstract class ShaderProgram {
     protected final int program;
 
     protected ShaderProgram(Context context, int vertexShaderResourceId,
@@ -37,6 +27,9 @@ abstract class ShaderProgram {
                 TextResourceReader
                         .readTextFileFromResource(context, fragmentShaderResourceId));
     }
+
+    public abstract int getUniformLocation(String uniformName);
+    public abstract int getAttributeLocation(String attributeName);
 
     public void useProgram() {
         // Set the current OpenGL shader program to this program.

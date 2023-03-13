@@ -8,18 +8,10 @@ import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 import android.util.DisplayMetrics;
 
-import com.hcmut.test.data.VertexArray;
-import com.hcmut.test.data.VertexData;
-import com.hcmut.test.geometry.LineStrip;
-import com.hcmut.test.geometry.Point;
-import com.hcmut.test.geometry.Polygon;
-import com.hcmut.test.geometry.Triangle;
-import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.map.MapReader;
 import com.hcmut.test.object.ObjectBuilder;
 import com.hcmut.test.data.Way;
 import com.hcmut.test.programs.ColorShaderProgram;
-import com.hcmut.test.utils.StrokeGenerator;
 
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -35,6 +27,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     MapReader mapReader;
     private final float[] vertices = {
             -0.5f, 0.5f, 0f,
+            -0.5f, 0f, 0f,
             -0.5f, -0.5f, 0f,
             0.5f, -0.5f, 0f,
             0.5f, -0f, 0f,
@@ -46,10 +39,14 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             -0.5f, 0.5f, 0f,
     };
     private final float[] vertices1 = {
-            0f, 0.5f, 0f,
-            0f, 0f, 0f,
-            -0.5f, 0f, 0f,
-            -0.5f, -0.5f, 0f,
+            0.67853165f, -0.798109f, 0.0f,
+            0.67853165f, -0.5953837f, 0.0f,
+            0.67853165f, -0.57202446f, 0.0f,
+            0.67630696f, -0.49249163f, 0.0f,
+            0.6718576f, -0.4783092f, 0.0f,
+            0.6629588f, -0.46440488f, 0.0f,
+            0.6451613f, -0.45661846f, 0.0f,
+            0.516129f, -0.44744158f, 0.0f,
     };
     private final float[] vertices2 = {
             -0.5f, 0.5f, 0f,
@@ -92,32 +89,23 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 //        originY = 0;
 //        scale = 1f;
 
-//        System.out.println("Origin: " + originX + ", " + originY + ", scale: " + scale);
+        System.out.println("Origin: " + originX + ", " + originY + ", scale: " + scale);
 
-        builder = new ObjectBuilder();
+        builder = new ObjectBuilder(colorProgram, projectionMatrix);
 //        Way way = new Way(vertices1);
-//        builder.addWay(way, originX, originY, scale);
+//        builder.addWay('asd', way, 0, 0, 1);
 
-        List<String> keyBlacklist = List.of(
-                "205341834",
-                "224935486",
-                "205957662",
-                "205342060",
-                "611427593"
-        );
-
-//        for (String key : mapReader.ways.keySet()) {
-//            Way way = mapReader.ways.get(key);
-//            if (way != null && !keyBlacklist.contains(key)) {
-//                System.out.println("Drawing way " + key);
-//                builder.addWay(way, originX, originY, scale);
-//            } else if (way != null && keyBlacklist.contains(key)) {
-//                System.out.println("Skipping way " + key + ": \n");
-//                for (Point p : way.toPoints(originX, originY, scale)) {
-//                    System.out.println("\t" + p.x + "f, " + p.y + "f, " + p.z + "f,");
+        for (String key : mapReader.ways.keySet()) {
+            Way way = mapReader.ways.get(key);
+//            System.out.println("Drawing way " + key);
+            if (way != null) {
+//                for (Point point : way.toPoints(originX, originY, scale)) {
+//                    System.out.println(point.x + "f, " + point.y + "f, " + point.z + "f,");
 //                }
-//            }
-//        }
+                builder.addWay(key, way, originX, originY, scale);
+            }
+        }
+        builder.finalizeDrawer();
     }
 
     public void handleTouchDrag(float eventX, float eventY) {
@@ -129,6 +117,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         float newOriginY = oldY + eventY / scale / width * 2;
         originX = newOriginX;
         originY = newOriginY;
+//        System.out.println("Origin: " + originX + ", " + originY + ", scale: " + scale);
     }
 
     public void handleTouchPress(float eventX, float eventY) {
@@ -148,6 +137,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         oldDistance = newDistance;
         scale += delta;
 //        System.out.println("Zooming delta " + delta);
+//        System.out.println("Origin: " + originX + ", " + originY + ", scale: " + scale);
     }
 
     public void handleResetZoom() {
@@ -180,33 +170,29 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_STENCIL_BUFFER_BIT);
         GLES20.glEnable(GLES20.GL_STENCIL_TEST);
 
-//        builder.draw(colorProgram, projectionMatrix);
+        builder.draw();
 
-        VertexData.resetRandom();
-
-        Polygon rv = StrokeGenerator.generateStroke(new LineStrip(vertices1), 10, 0.1f);
-        TriangleStrip triangles = new TriangleStrip(rv.points);
-        TriangleStrip single = new TriangleStrip(vertices1);
-        triangles.points.addAll(single.points);
-
-//        float[] waysVertexData = triangles.size() > 0 ? new float[triangles.get(0).toVertexData().length * triangles.size()] : new float[0];
-//        for (int i = 0; i < triangles.size(); i++) {
-//            System.arraycopy(triangles.get(i).toVertexData(), 0, waysVertexData, i * triangles.get(i).toVertexData().length, triangles.get(i).toVertexData().length);
+//        VertexData.resetRandom();
+//
+//        Polygon rv = StrokeGenerator.generateStroke(new LineStrip(vertices1), 8, 0.02f);
+////        Polygon rv = new Polygon(vertices1);
+//        TriangleStrip triangles = new TriangleStrip(rv.points);
+//        TriangleStrip single = new TriangleStrip(vertices1);
+//        triangles.points.addAll(single.points);
+//
+//        int uMVPLocation = colorProgram.getUniformLocation(ColorShaderProgram.U_MATRIX);
+//
+//        VertexArray vertexArray = new VertexArray(triangles.toVertexData(0, 0, 0, 1));
+//
+//        int strideInElements = VertexData.getTotalComponentCount();
+//        for (VertexData.VertexAttrib attrib : VertexData.getVertexAttribs()) {
+//            int location = colorProgram.getAttributeLocation(attrib.name);
+//            vertexArray.setVertexAttribPointer(attrib.offset, location, attrib.count, strideInElements);
 //        }
-
-        int uMVPLocation = colorProgram.getUniformLocation(ColorShaderProgram.U_MATRIX);
-
-        VertexArray vertexArray = new VertexArray(triangles.toVertexData(0, 0, 0, 1));
-
-        int strideInElements = VertexData.getTotalComponentCount();
-        for (VertexData.VertexAttrib attrib : VertexData.getVertexAttribs()) {
-            int location = colorProgram.getAttributeLocation(attrib.name);
-            vertexArray.setVertexAttribPointer(attrib.offset, location, attrib.count, strideInElements);
-        }
-        colorProgram.useProgram();
-        GLES20.glUniformMatrix4fv(uMVPLocation, 1, false, projectionMatrix, 0);
-
-        GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, triangles.points.size() - single.points.size());
-        GLES20.glDrawArrays(GLES20.GL_POINTS, triangles.points.size() - single.points.size(), single.points.size());
+//        colorProgram.useProgram();
+//        GLES20.glUniformMatrix4fv(uMVPLocation, 1, false, projectionMatrix, 0);
+//
+//        GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, triangles.points.size() - single.points.size());
+//        GLES20.glDrawArrays(GLES20.GL_POINTS, triangles.points.size() - single.points.size(), single.points.size());
     }
 }

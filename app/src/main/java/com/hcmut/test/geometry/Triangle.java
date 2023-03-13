@@ -6,6 +6,8 @@ import com.hcmut.test.data.Node;
 import com.hcmut.test.data.VertexData;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 
 public class Triangle {
     public final Point p1;
@@ -70,5 +72,31 @@ public class Triangle {
                 ", p2=" + p2 +
                 ", p3=" + p3 +
                 '}';
+    }
+
+    public static float[] toVertexData(List<Triangle> triangles, float r, float g, float b, float a) {
+        float[] triangleVertexData = new float[0];
+        for (Triangle triangle : triangles) {
+            float[] curTriangleVertexData = triangle.toVertexData(r, g, b, a);
+            float[] newTriangleVertexData = new float[triangleVertexData.length + curTriangleVertexData.length];
+            System.arraycopy(triangleVertexData, 0, newTriangleVertexData, 0, triangleVertexData.length);
+            System.arraycopy(curTriangleVertexData, 0, newTriangleVertexData, triangleVertexData.length, curTriangleVertexData.length);
+            triangleVertexData = newTriangleVertexData;
+        }
+
+        return triangleVertexData;
+    }
+
+    public static float[] toVertexData(List<Triangle> triangles) {
+        float[] triangleVertexData = new float[0];
+        for (Triangle triangle : triangles) {
+            float[] curTriangleVertexData = triangle.toVertexData();
+            float[] newTriangleVertexData = new float[triangleVertexData.length + curTriangleVertexData.length];
+            System.arraycopy(triangleVertexData, 0, newTriangleVertexData, 0, triangleVertexData.length);
+            System.arraycopy(curTriangleVertexData, 0, newTriangleVertexData, triangleVertexData.length, curTriangleVertexData.length);
+            triangleVertexData = newTriangleVertexData;
+        }
+
+        return triangleVertexData;
     }
 }
