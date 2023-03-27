@@ -21,6 +21,7 @@ import java.nio.FloatBuffer;
 public class VertexArray {
     private static final int BYTES_PER_FLOAT = 4;
     private final FloatBuffer floatBuffer;
+    private final int vertexCount;
 
     public VertexArray(float[] vertexData) {
         floatBuffer = ByteBuffer
@@ -28,6 +29,7 @@ public class VertexArray {
                 .order(ByteOrder.nativeOrder())
                 .asFloatBuffer()
                 .put(vertexData);
+        vertexCount = vertexData.length / VertexData.getTotalComponentCount();
     }
 
     public void setVertexAttribPointer(int dataOffset, int attributeLocation,
@@ -46,5 +48,9 @@ public class VertexArray {
             int location = shaderProgram.getAttributeLocation(attrib.name);
             setVertexAttribPointer(attrib.offset, location, attrib.count, strideInElements);
         }
+    }
+
+    public int getVertexCount() {
+        return vertexCount;
     }
 }

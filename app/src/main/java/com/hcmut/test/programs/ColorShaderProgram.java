@@ -19,47 +19,22 @@ import com.hcmut.test.R;
 import java.util.HashMap;
 
 public class ColorShaderProgram extends ShaderProgram {
-    public static final String U_MATRIX = "u_Matrix";
+    public static final String U_PROJECTION_MATRIX = "u_ProjectionMatrix";
+    public static final String U_MODEL_VIEW_MATRIX = "u_ModelViewMatrix";
     public static final String A_POSITION = "a_Position";
     public static final String A_COLOR = "a_Color";
-
-    private final HashMap<String, Integer> mUniformLocations = new HashMap<String, Integer>();
-    private final HashMap<String, Integer> mAttributeLocations = new HashMap<String, Integer>();
 
     public ColorShaderProgram(Context context) {
         super(context, R.raw.vert_shader,
                 R.raw.frag_shader);
-
-        // Retrieve uniform locations for the shader program.
-        // Uniform locations
-        int uMatrixLocation = glGetUniformLocation(program, U_MATRIX);
-
-        mUniformLocations.put(U_MATRIX, uMatrixLocation);
-
-        // Retrieve attribute locations for the shader program.
-        // Attribute locations
-        int aPositionLocation = glGetAttribLocation(program, A_POSITION);
-        int aColorLocation = glGetAttribLocation(program, A_COLOR);
-
-        mAttributeLocations.put(A_POSITION, aPositionLocation);
-        mAttributeLocations.put(A_COLOR, aColorLocation);
     }
 
+
     public int getUniformLocation(String uniformName) {
-        Integer location = mUniformLocations.get(uniformName);
-        if (location == null) {
-            location = glGetUniformLocation(program, uniformName);
-            mUniformLocations.put(uniformName, location);
-        }
-        return location;
+        return glGetUniformLocation(program, uniformName);
     }
 
     public int getAttributeLocation(String attributeName) {
-        Integer location = mAttributeLocations.get(attributeName);
-        if (location == null) {
-            location = glGetAttribLocation(program, attributeName);
-            mAttributeLocations.put(attributeName, location);
-        }
-        return location;
+        return glGetAttribLocation(program, attributeName);
     }
 }

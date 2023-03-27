@@ -1,33 +1,46 @@
 package com.hcmut.test.geometry;
 
-import com.hcmut.test.data.Node;
+import com.hcmut.test.data.VertexData;
 import com.hcmut.test.data.Way;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class LineStrip {
-    public final List<Point> points;
+    public final ArrayList<Point> points;
 
     public LineStrip(List<Point> points) {
-        this.points = points;
+        this.points = new ArrayList<>(points);
+        checkInit();
     }
 
     public LineStrip(Point[] points) {
-        this.points = List.of(points);
+        this(List.of(points));
     }
 
     public LineStrip(Way way) {
-        this.points = new ArrayList<>();
-        for (Node node : way.nodes) {
-            this.points.add(new Point(node.lon, node.lat));
-        }
+        this(way.toPoints());
     }
 
     public LineStrip(float[] points) {
-        this.points = new ArrayList<>();
-        for (int i = 0; i < points.length; i += 3) {
-            this.points.add(new Point(points[i], points[i + 1], points[i + 2]));
-        }
+        this(new ArrayList<>() {
+            {
+                for (int i = 0; i < points.length; i += 3) {
+                    add(new Point(points[i], points[i + 1], points[i + 2]));
+                }
+            }
+        });
+    }
+
+    private void checkInit() {
+        assert points.size() >= 2 : "LineStrip must have at least 2 points";
+    }
+
+    public float[] toVertexData(float r, float g, float b, float a) {
+        return VertexData.toVertexData(points, r, g, b, a);
+    }
+
+    public float[] toVertexData() {
+        return VertexData.toVertexData(points, true);
     }
 }

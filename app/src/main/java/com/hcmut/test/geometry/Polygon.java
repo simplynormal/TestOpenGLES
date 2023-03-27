@@ -1,8 +1,5 @@
 package com.hcmut.test.geometry;
 
-import static com.menecats.polybool.helpers.PolyBoolHelper.epsilon;
-import static com.menecats.polybool.helpers.PolyBoolHelper.polygon;
-
 import com.hcmut.test.data.Node;
 import com.hcmut.test.data.Way;
 import com.hcmut.test.geometry.equation.LineEquation;
@@ -18,7 +15,6 @@ import java.util.List;
 public class Polygon {
     public final List<Point> points;
     public final List<Polygon> holes;
-    private final double EPSILON = 1e-6;
 
     public Polygon(List<Point> points) {
         this.points = points;
@@ -74,7 +70,10 @@ public class Polygon {
         assert isClosed() : "Polygon must be closed";
 
         for (int i = 0; i < points.size() - 1; i++) {
-            assert !points.get(i).equals(points.get(i + 1)) : "Polygon must not have duplicate points";
+            if (points.get(i).equals(points.get(i + 1))) {
+                points.remove(i);
+                i--;
+            }
         }
         removeSameLinePoints();
     }
@@ -119,27 +118,6 @@ public class Polygon {
         }
 
         return count % 2 == 1;
-    }
-
-    private List<double[]> toPolyBoolRegion() {
-        List<double[]> region = new ArrayList<>();
-        for (Point p : points) {
-            double x = Math.round(p.x / EPSILON) * EPSILON;
-            double y = Math.round(p.y / EPSILON) * EPSILON;
-            region.add(new double[]{x, y});
-        }
-        return region;
-    }
-
-    public com.menecats.polybool.models.Polygon toPolyBoolPolygon() {
-        List<List<double[]>> regions = new ArrayList<>();
-
-        regions.add(toPolyBoolRegion());
-        for (Polygon hole : holes) {
-            regions.add(hole.toPolyBoolRegion());
-        }
-
-        return new com.menecats.polybool.models.Polygon(regions);
     }
 
     public void removeSameLinePoints() {

@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class BorderGenerator {
+    private static final float Z_FOR_BELOW = -5e-4f;
     private static Point findAngleBorderPoint(Point pointA, Point midPoint, Point pointB, float d, boolean isReflexAngle) {
         Vector vectorMidA = new Vector(midPoint, pointA);
         Vector vectorMidB = new Vector(midPoint, pointB);
@@ -41,8 +42,11 @@ public class BorderGenerator {
         Point rv = LineEquation.intersect(line1, line2);
         if (rv == null) {
             System.out.println("========================null=======>>>>>>>>>>>>>>>>>>");
+            point1 = new Point(point1.x, point1.y, Z_FOR_BELOW);
+            point2 = new Point(point2.x, point2.y, Z_FOR_BELOW);
             return isReflexAngle ? point2 : point1;
         }
+        rv = new Point(rv.x, rv.y, Z_FOR_BELOW);
         return rv;
     }
 

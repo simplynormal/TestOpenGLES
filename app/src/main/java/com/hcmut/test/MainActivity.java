@@ -12,6 +12,10 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
 
+import androidx.annotation.NonNull;
+
+import org.jetbrains.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,17 +23,147 @@ import javax.microedition.khronos.egl.EGL10;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.egl.EGLDisplay;
 
-/**
- * This example use openGL v2.0
- * It creates a render, instead of extending the mGLSurfaceView
- * see ex2 for and extended mGLSurfaceView
- * <p>
- * This code is based off of
- * http://www.learnopengles.com/android-lesson-one-getting-started/
- * <p>
- * Note, there is no xml layout for this example. It's all done in onCreate and
- * the render.
- */
+final class MultisampleConfigChooser implements GLSurfaceView.EGLConfigChooser {
+
+    private static final int EGL_COVERAGE_BUFFERS_NV = 0x30E0;
+    private static final int EGL_COVERAGE_SAMPLES_NV = 0x30E1;
+
+    private static final int RED = 5;
+    private static final int GREEN = 6;
+    private static final int BLUE = 5;
+    private static final int ALPHA = 0;
+    private static final int STENCIL = 8;
+    private static final int DEPTH = 16;
+
+    private static int findConfigAttrib(@NonNull EGL10 gl, @NonNull EGLDisplay display, @NonNull EGLConfig config, int attribute, int defaultValue, int[] tmp) {
+        if (gl.eglGetConfigAttrib(display, config, attribute, tmp)) {
+            return tmp[0];
+        }
+        return defaultValue;
+    }
+
+    @Override
+    public EGLConfig chooseConfig(@NonNull EGL10 gl, @NonNull EGLDisplay display) {
+        // try to find a normal multisample configuration first.
+        EGLConfig config = ConfigData.create(EGL10.EGL_RED_SIZE, RED,
+                EGL10.EGL_GREEN_SIZE, GREEN,
+                EGL10.EGL_BLUE_SIZE, BLUE,
+                EGL10.EGL_ALPHA_SIZE, ALPHA,
+                EGL10.EGL_STENCIL_SIZE, STENCIL,
+                EGL10.EGL_DEPTH_SIZE, DEPTH,
+                EGL10.EGL_RENDERABLE_TYPE, 4 /* EGL_OPENGL_ES2_BIT */,
+                EGL10.EGL_SAMPLE_BUFFERS, 1 /* true */,
+                EGL10.EGL_SAMPLES, 2,
+                EGL10.EGL_NONE).tryConfig(gl, display);
+        if (config != null) {
+            System.out.println("Using normal multisampling");
+            return config;
+        }
+
+        // no normal multisampling config was found. Try to create a
+        // coverage multisampling configuration, for the nVidia Tegra2.
+        // See the EGL_NV_coverage_sample documentation.
+        config = ConfigData.create(EGL10.EGL_RED_SIZE, RED,
+                EGL10.EGL_GREEN_SIZE, GREEN,
+                EGL10.EGL_BLUE_SIZE, BLUE,
+                EGL10.EGL_ALPHA_SIZE, ALPHA,
+                EGL10.EGL_STENCIL_SIZE, STENCIL,
+                EGL10.EGL_DEPTH_SIZE, DEPTH,
+                EGL10.EGL_RENDERABLE_TYPE, 4 /* EGL_OPENGL_ES2_BIT */,
+                EGL_COVERAGE_BUFFERS_NV, 1 /* true */,
+                EGL_COVERAGE_SAMPLES_NV, 2,  // always 5 in practice on tegra 2
+                EGL10.EGL_NONE).tryConfig(gl, display);
+        if (config != null) {
+            System.out.println("Using coverage multisampling");
+            return config;
+        }
+
+        // fallback to simple configuration
+        config = ConfigData.create(
+                EGL10.EGL_RED_SIZE, RED,
+                EGL10.EGL_GREEN_SIZE, GREEN,
+                EGL10.EGL_BLUE_SIZE, BLUE,
+                EGL10.EGL_ALPHA_SIZE, ALPHA,
+                EGL10.EGL_STENCIL_SIZE, STENCIL,
+                EGL10.EGL_DEPTH_SIZE, DEPTH,
+                EGL10.EGL_NONE).tryConfig(gl, display);
+        if (config != null) {
+            System.out.println("Using no multisampling");
+            return config;
+        }
+
+        throw new IllegalArgumentException("No supported configuration found");
+    }
+
+    private static final class ConfigData {
+        final int[] spec;
+
+        private ConfigData(int[] spec) {
+            this.spec = spec;
+        }
+
+        @NonNull
+        private static ConfigData create(int... spec) {
+            return new ConfigData(spec);
+        }
+
+        @Nullable
+        private EGLConfig tryConfig(@NonNull EGL10 gl, @NonNull EGLDisplay display) {
+            final int[] tmp = new int[1];
+
+            if (!gl.eglChooseConfig(display, spec, null, 0, tmp)) {
+                return null;
+            }
+            final int count = tmp[0];
+            if (count > 0) {
+                // get all matching configurations
+                final EGLConfig[] configs = new EGLConfig[count];
+                if (!gl.eglChooseConfig(display, spec, configs, count, tmp)) {
+                    return null;
+                }
+
+                return findConfig(gl, display, configs, tmp);
+            }
+
+            return null;
+        }
+
+        @Nullable
+        private EGLConfig findConfig(@NonNull EGL10 gl, @NonNull EGLDisplay display, @NonNull EGLConfig[] configs, int[] tmp) {
+            // sometimes eglChooseConfig returns configurations with not requested
+            // options: even though we asked for rgb565 configurations, rgb888
+            // configurations are considered to be "better" and returned first.
+            // We need to explicitly filter data returned by eglChooseConfig
+            // adn choose the right configuration.
+            for (final EGLConfig config : configs) {
+                if (config != null && isDesiredConfig(gl, display, tmp, config)) {
+                    return config;
+                }
+            }
+
+            return null;
+        }
+
+        private boolean isDesiredConfig(@NonNull EGL10 gl, @NonNull EGLDisplay display, @NonNull int[] tmp, @NonNull EGLConfig config) {
+            for (int i = 0; i + 1 < spec.length; i += 2) {
+                final int attribute = spec[i];
+                final int desiredValue = spec[i + 1];
+                final int actualValue = findConfigAttrib(gl, display, config, attribute, 0, tmp);
+                if (attribute == EGL10.EGL_DEPTH_SIZE) {
+                    if (actualValue < desiredValue) {
+                        return false;
+                    }
+                } else {
+                    if (desiredValue != actualValue) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+    }
+}
 
 public class MainActivity extends Activity {
 
@@ -56,13 +190,12 @@ public class MainActivity extends Activity {
             case MotionEvent.ACTION_CANCEL:
                 return "Cancel";
         }
-        return "";
+        return action + "";
     }
 
     @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        Test.main();
         // Turn off the window's title bar
         requestWindowFeature(Window.FEATURE_NO_TITLE);
 
@@ -77,29 +210,7 @@ public class MainActivity extends Activity {
         if (supportsEs2) {
             // Request an OpenGL ES 2.0 compatible context.
             mGLSurfaceView.setEGLContextClientVersion(2);
-            mGLSurfaceView.setEGLConfigChooser((egl, display) -> {
-                int[] attributes = new int[]{
-                        EGL10.EGL_RED_SIZE, 8,
-                        EGL10.EGL_GREEN_SIZE, 8,
-                        EGL10.EGL_BLUE_SIZE, 8,
-                        EGL10.EGL_ALPHA_SIZE, 8,
-                        EGL10.EGL_DEPTH_SIZE, 16,
-                        EGL10.EGL_STENCIL_SIZE, 0,
-                        EGL10.EGL_RENDERABLE_TYPE, 4,
-//                        EGL10.EGL_SAMPLE_BUFFERS, 1,
-//                        EGL10.EGL_SAMPLES, 4,
-                        EGL10.EGL_NONE
-                };
-                int[] result = new int[1];
-                egl.eglChooseConfig(display, attributes, null, 0, result);
-                int numConfigs = result[0];
-                if (numConfigs <= 0) {
-                    throw new IllegalArgumentException("No configs match configSpec");
-                }
-                EGLConfig[] configs = new EGLConfig[numConfigs];
-                egl.eglChooseConfig(display, attributes, configs, numConfigs, result);
-                return configs[0];
-            });
+            mGLSurfaceView.setEGLConfigChooser(new MultisampleConfigChooser());
 
             // Set the renderer to our demo renderer, defined below.
             mGLSurfaceView.setRenderer(testRenderer);
@@ -114,7 +225,7 @@ public class MainActivity extends Activity {
                 final float eventY = event.getY();
                 final int eventType = event.getAction();
                 final int eventPointerCount = event.getPointerCount();
-//                System.out.println("Action: " + actionToString(eventType));
+                System.out.println("Action: " + actionToString(eventType));
                 if (eventPointerCount > 1) {
                     List<Float> eventXs = new ArrayList<>();
                     List<Float> eventYs = new ArrayList<>();

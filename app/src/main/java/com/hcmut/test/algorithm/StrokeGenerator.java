@@ -1,6 +1,5 @@
 package com.hcmut.test.algorithm;
 
-import static com.menecats.polybool.helpers.PolyBoolHelper.epsilon;
 
 import android.util.Pair;
 
@@ -11,7 +10,6 @@ import com.hcmut.test.geometry.Polygon;
 import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.geometry.Vector;
 import com.hcmut.test.geometry.equation.LineEquation;
-import com.menecats.polybool.Epsilon;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -148,37 +146,6 @@ public class StrokeGenerator {
         }
     }
 
-    private static Pair<List<Point>, List<Point>> validateIntersection(List<Point> lastFirstTangentVertices1, List<Point> lastFirstTangentVertices2, List<Point> lastSecondTangentVertices1, List<Point> lastSecondTangentVertices2, Pair<List<Point>, List<Point>> tangentVertices) {
-        Line firstLine1 = new Line(lastFirstTangentVertices2.get(lastFirstTangentVertices2.size() - 1), lastFirstTangentVertices1.get(0));
-        Line firstLine2 = new Line(lastFirstTangentVertices1.get(lastFirstTangentVertices1.size() - 1), tangentVertices.first.get(0));
-        Line secondLine1 = new Line(lastSecondTangentVertices2.get(lastSecondTangentVertices2.size() - 1), lastSecondTangentVertices1.get(0));
-        Line secondLine2 = new Line(lastSecondTangentVertices1.get(lastSecondTangentVertices1.size() - 1), tangentVertices.second.get(0));
-
-        Point firstIntersection = firstLine1.intersect(firstLine2);
-        Point secondIntersection = secondLine1.intersect(secondLine2);
-
-        boolean isFirstIntersectionAtEnd = firstIntersection != null && (firstIntersection.equals(firstLine1.p2) || firstIntersection.equals(firstLine2.p2));
-        boolean isSecondIntersectionAtEnd = secondIntersection != null && (secondIntersection.equals(secondLine1.p2) || secondIntersection.equals(secondLine2.p2));
-
-        List<Point> first;
-        List<Point> second;
-
-        if (firstIntersection != null && !isFirstIntersectionAtEnd) {
-            first = List.of(firstIntersection);
-        } else {
-            first = lastFirstTangentVertices1;
-        }
-
-        if (secondIntersection != null && !isSecondIntersectionAtEnd) {
-            second = List.of(secondIntersection);
-        } else {
-            second = new ArrayList<>(lastSecondTangentVertices1);
-            Collections.reverse(second);
-        }
-
-        return new Pair<>(first, second);
-    }
-
     public static Polygon removeRearHoles(Polygon p) {
         int i = 0;
         // Copy the list so that we can modify it
@@ -189,35 +156,16 @@ public class StrokeGenerator {
             Point p2 = points.get((i + 1) % points.size());
 
             int n = points.size();
-            for (int j = (i + 2) % n; j != (i - 1 + n) % n; j = (j + 1) % n) {
-                Point p3 = points.get(j % n);
-                Point p4 = points.get((j + 1) % n);
+            for (int j = (i - 1 + n) % n; j != (i + 2) % n; j = (j - 1 + n) % n) {
+                Point p3 = points.get((j - 1 + n) % n);
+                Point p4 = points.get(j);
                 Point intersection = Line.getIntersection(p1, p2, p3, p4);
                 if (intersection != null) {
-                    List<Point> pointsFromJToI = new ArrayList<>();
-                    if (j < i) {
-                        pointsFromJToI.addAll(points.subList(j + 1, i));
-                    } else {
-                        pointsFromJToI.addAll(points.subList(j + 1, n));
-                        pointsFromJToI.addAll(points.subList(0, i + 1));
+                    // Remove points from i + 1 to j - 1
+                    for (int k = (i + 1) % n; k != j; k = (k + 1) % n) {
+                        points.remove((i + 1) % points.size());
                     }
-                    pointsFromJToI.add(pointsFromJToI.get(0));
-                    Polygon polyFromJToI = new Polygon(pointsFromJToI);
-                    boolean isJIInside = polyFromJToI.doesContain(p3);
-
-                    if (!isJIInside) {
-                        // Remove points from j + 1 to i
-                        for (int k = 0; k < ((i - j + n) % n); k++) {
-                            points.remove((j + 1) % points.size());
-                        }
-                        points.add((j + 1) % points.size(), intersection);
-                    } else {
-                        // Remove points from i + 1 to j
-                        for (int k = 0; k < ((j - i + n) % n); k++) {
-                            points.remove((i + 1) % points.size());
-                        }
-                        points.add((i + 1) % points.size(), intersection);
-                    }
+                    points.add((i + 1) % points.size(), intersection);
                     break;
                 }
             }
@@ -230,41 +178,22 @@ public class StrokeGenerator {
     }
 
     private static Polygon generateStroke(LineStrip line, PolygonalBrush brush) {
-        assert line.points.size() >= 2 : "line must have at least 2 points";
         List<Point> vertices = new ArrayList<>();
         List<Point> head = brush.genEndCapVertices(new Vector(line.points.get(0), line.points.get(1)));
         List<Point> firstHalf = new ArrayList<>();
         List<Point> secondHalf = new ArrayList<>();
 
-        List<Point> lastFirstTangentVertices1 = List.of(head.get(head.size() - 1));
-        List<Point> lastSecondTangentVertices1 = List.of(head.get(0));
-        List<Point> lastFirstTangentVertices2 = null;
-        List<Point> lastSecondTangentVertices2 = null;
-
         for (int i = 1; i < line.points.size() - 1; i++) {
             brush.relocate(line.points.get(i));
             Vector v = new Vector(line.points.get(i), line.points.get(i + 1));
             Pair<List<Point>, List<Point>> tangentVertices = brush.genTangentVertices(v);
-            if (lastFirstTangentVertices2 != null) {
-                Pair<List<Point>, List<Point>> validated = validateIntersection(lastFirstTangentVertices1, lastFirstTangentVertices2, lastSecondTangentVertices1, lastSecondTangentVertices2, tangentVertices);
-                firstHalf.addAll(validated.first);
-                secondHalf.addAll(0, validated.second);
-            }
-
-            lastFirstTangentVertices2 = lastFirstTangentVertices1;
-            lastSecondTangentVertices2 = lastSecondTangentVertices1;
-            lastFirstTangentVertices1 = tangentVertices.first;
-            lastSecondTangentVertices1 = tangentVertices.second;
+            Collections.reverse(tangentVertices.second);
+            firstHalf.addAll(tangentVertices.first);
+            secondHalf.addAll(0, tangentVertices.second);
         }
 
         brush.relocate(line.points.get(line.points.size() - 1));
         List<Point> tail = brush.genEndCapVertices(new Vector(line.points.get(line.points.size() - 1), line.points.get(line.points.size() - 2)));
-
-        if (lastFirstTangentVertices2 != null) {
-            Pair<List<Point>, List<Point>> validated = validateIntersection(lastFirstTangentVertices1, lastFirstTangentVertices2, lastSecondTangentVertices1, lastSecondTangentVertices2, new Pair<>(List.of(tail.get(0)), List.of(tail.get(tail.size() - 1))));
-            firstHalf.addAll(validated.first);
-            secondHalf.addAll(0, validated.second);
-        }
 
         vertices.addAll(head);
         vertices.addAll(firstHalf);
