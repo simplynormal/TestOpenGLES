@@ -84,6 +84,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
     private final float[] projectionMatrix = new float[16];
     private final float[] modelViewMatrix = new float[16];
+    private final float[] transformMatrix = new float[16];
     private float oldOriginX = 0;
     private float originX = 0;
     private float oldOriginY = 0;
@@ -98,7 +99,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     @Override
     public void onSurfaceCreated(GL10 glUnused, EGLConfig config) {
         glClearColor(0.95f, 0.94f, 0.91f, 1f);
-        colorProgram = new ColorShaderProgram(context);
+        colorProgram = new ColorShaderProgram(context, projectionMatrix, modelViewMatrix, transformMatrix);
 
 //        float minLon = 106.73603f;
 //        float maxLon = 106.74072f;
@@ -135,12 +136,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         System.out.println("Origin: " + originX + ", " + originY + ", scale: " + scale);
 
 
-        List<String> keyBlacklist = new ArrayList<>(List.of("221442275"));
-
-
-        builder = new ObjectBuilder(colorProgram, projectionMatrix, modelViewMatrix);
-//        Way way = new Way(vertices);
-//        builder.addWay("asd", way, 0, 0, 1);
+        builder = new ObjectBuilder(colorProgram);
 
         for (String key : mapReader.ways.keySet()) {
             Way way = mapReader.ways.get(key);
@@ -210,9 +206,20 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         final float aspectRatio = width > height ? (float) width / (float) height : (float) height / (float) width;
         Matrix.frustumM(projectionMatrix, 0, -width / (float) height, width / (float) height, -1f, 1f, 1f, 10f);
         Matrix.setLookAtM(modelViewMatrix, 0, 0f, -1.5f, 2f, 0f, 0, 0f, 0f, 1f, 0f);
+        Matrix.setIdentityM(transformMatrix, 0);
 
 //        Matrix.orthoM(projectionMatrix, 0, -1f, 1f, -aspectRatio, aspectRatio, -1f, 1f);
 //        Matrix.setIdentityM(modelViewMatrix, 0);
+    }
+
+    public void testClosedShape() {
+        ObjectBuilder builder1 = new ObjectBuilder(colorProgram);
+        Way way = new Way(vertices);
+
+        builder1.addWay("asd", way, 0, 0, 1);
+        builder1.finalizeDrawer();
+
+        builder1.draw();
     }
 
     public void testStroke() {

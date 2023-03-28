@@ -18,8 +18,6 @@ import java.util.HashMap;
 import java.util.List;
 
 public class HighwayDrawer extends Drawable {
-    float[] projectionMatrix;
-    float[] modelViewMatrix;
     HashMap<String, List<Triangle>> wayTriangles = new HashMap<>();
     HashMap<String, TriangleStrip> wayBorderTriangleStrips = new HashMap<>();
     VertexArray wayVertexArray;
@@ -28,10 +26,8 @@ public class HighwayDrawer extends Drawable {
     float originY = 0;
     float scale = 1;
 
-    public HighwayDrawer(ColorShaderProgram colorShaderProgram, float[] projectionMatrix, float[] modelViewMatrix) {
+    public HighwayDrawer(ColorShaderProgram colorShaderProgram) {
         super(colorShaderProgram);
-        this.projectionMatrix = projectionMatrix;
-        this.modelViewMatrix = modelViewMatrix;
     }
 
     public void addWay(String key, Way way, float originX, float originY, float scale) {
@@ -112,12 +108,6 @@ public class HighwayDrawer extends Drawable {
         GLES20.glClear(GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_STENCIL_BUFFER_BIT);
 
         shaderProgram.useProgram();
-        int uMVPLocation = shaderProgram.getUniformLocation(ColorShaderProgram.U_PROJECTION_MATRIX);
-        GLES20.glUniformMatrix4fv(uMVPLocation, 1, false, projectionMatrix, 0);
-
-        int uModelViewMatrix = shaderProgram.getUniformLocation(ColorShaderProgram.U_MODEL_VIEW_MATRIX);
-        GLES20.glUniformMatrix4fv(uModelViewMatrix, 1, false, modelViewMatrix, 0);
-
         drawHighway();
         drawBorder();
     }

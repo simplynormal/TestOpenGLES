@@ -21,13 +21,9 @@ public class AreaDrawer extends Drawable {
     float originX = 0;
     float originY = 0;
     float scale = 1;
-    float[] projectionMatrix;
-    float[] modelViewMatrix;
 
-    public AreaDrawer(ColorShaderProgram colorShaderProgram, float[] projectionMatrix, float[] modelViewMatrix) {
+    public AreaDrawer(ColorShaderProgram colorShaderProgram) {
         super(colorShaderProgram);
-        this.projectionMatrix = projectionMatrix;
-        this.modelViewMatrix = modelViewMatrix;
     }
 
     public void addWay(String key, Way way, float originX, float originY, float scale) {
@@ -62,12 +58,6 @@ public class AreaDrawer extends Drawable {
         }
 
         shaderProgram.useProgram();
-        int uProjectionMatrix = shaderProgram.getUniformLocation(ColorShaderProgram.U_PROJECTION_MATRIX);
-        glUniformMatrix4fv(uProjectionMatrix, 1, false, projectionMatrix, 0);
-
-        int uModelViewMatrix = shaderProgram.getUniformLocation(ColorShaderProgram.U_MODEL_VIEW_MATRIX);
-        glUniformMatrix4fv(uModelViewMatrix, 1, false, modelViewMatrix, 0);
-
         wayVertexArray.setDataFromVertexData(shaderProgram);
         glDrawArrays(GL_TRIANGLES, 0, wayTriangles.size() * 3);
     }

@@ -223,7 +223,7 @@ public class MainActivity extends Activity {
             if (event != null) {
                 final float eventX = event.getX();
                 final float eventY = event.getY();
-                final int eventType = event.getAction();
+                final int eventType = event.getActionMasked();
                 final int eventPointerCount = event.getPointerCount();
                 System.out.println("Action: " + actionToString(eventType));
                 if (eventPointerCount > 1) {
@@ -236,6 +236,7 @@ public class MainActivity extends Activity {
                     if (eventType == MotionEvent.ACTION_POINTER_DOWN) {
                         System.out.println("ACTION_POINTER_DOWN" + eventXs + " " + eventYs);
                     } else if (eventType == MotionEvent.ACTION_MOVE) {
+                        System.out.println("ACTION_MOVE" + eventXs + " " + eventYs);
                         mGLSurfaceView.queueEvent(() -> testRenderer.handleZoom(eventXs, eventYs));
                     } else if (eventType == MotionEvent.ACTION_POINTER_UP) {
                         mGLSurfaceView.queueEvent(testRenderer::handleResetZoom);
