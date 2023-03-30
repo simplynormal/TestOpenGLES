@@ -26,7 +26,7 @@ public class ObjectBuilder {
     }
 
     public void addWay(String key, Way way, float originX, float originY, float scale) {
-        if (way.isClosed()) {
+        if (way.isClosed() && !way.tags.containsKey("highway")) {
             areaDrawer.addWay(key, way, originX, originY, scale);
         } else {
             highwayDrawer.addWay(key, way, originX, originY, scale);

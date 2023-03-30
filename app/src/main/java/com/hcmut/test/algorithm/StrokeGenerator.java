@@ -9,14 +9,14 @@ import com.hcmut.test.geometry.Point;
 import com.hcmut.test.geometry.Polygon;
 import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.geometry.Vector;
-import com.hcmut.test.geometry.equation.LineEquation;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class StrokeGenerator {
-    private static boolean DEBUG = false;
+    private static boolean DEBUG = true;
+    private static final float Z_BORDER = -5e-4f;
 
     private static class PolygonalBrush {
         private List<Point> points;
@@ -25,11 +25,15 @@ public class StrokeGenerator {
         private int prevTangentCoef = 1;
 
         public PolygonalBrush(int n, float r, Point center) {
+            this(n, r, center, 0);
+        }
+
+        public PolygonalBrush(int n, float r, Point center, float z) {
             assert n % 2 == 0 && n >= 4 : "n must be even and >= 4";
             points = new ArrayList<>();
             for (int i = 0; i < n; i++) {
                 float angle = (float) -(2 * Math.PI * i / n);
-                points.add(new Point(center.x + r * (float) Math.cos(angle), center.y + r * (float) Math.sin(angle)));
+                points.add(new Point(center.x + r * (float) Math.cos(angle), center.y + r * (float) Math.sin(angle), z));
             }
             this.center = center;
         }
@@ -105,6 +109,22 @@ public class StrokeGenerator {
             return rv;
         }
 
+        public List<Point> genEndCapTriangleStrip(Vector v, boolean isStart) {
+            List<Point> points = genEndCapVertices(v);
+            List<Point> rv = new ArrayList<>();
+            int n = points.size();
+            for (int i = 0; i <= n / 2; i++) {
+                rv.add(points.get(i));
+                rv.add(points.get(n - 1 - i));
+            }
+
+            if (isStart) {
+                Collections.reverse(rv);
+            }
+
+            return rv;
+        }
+
         public Pair<List<Point>, List<Point>> genTangentVertices(Vector v) {
             List<Point> rv1 = new ArrayList<>();
             List<Point> rv2 = new ArrayList<>();
@@ -142,7 +162,40 @@ public class StrokeGenerator {
                 }
             }
 
-            return new Pair<>(rv1, rv2);
+            Point[] currAndOpposite = getCurrentAndOppositeVertices(curActivePointIdx);
+            return new Pair<>(List.of(currAndOpposite[0]), List.of(currAndOpposite[1]));
+        }
+    }
+
+    public static class Stroke {
+        private final List<Point> points;
+
+        public Stroke() {
+            this(new ArrayList<>());
+        }
+
+        public Stroke(List<Point> points) {
+            this.points = points;
+        }
+
+        public TriangleStrip toTriangleStrip() {
+            return new TriangleStrip(new ArrayList<>(this.points));
+        }
+
+        public List<Point> toOrderedPoints() {
+            List<Point> firstHalf = new ArrayList<>();
+            List<Point> secondHalf = new ArrayList<>();
+
+            for (int i = 0; i < points.size(); i += 2) {
+                firstHalf.add(points.get(i));
+                secondHalf.add(points.get(i + 1));
+            }
+
+            List<Point> points = new ArrayList<>(firstHalf);
+            Collections.reverse(secondHalf);
+            points.addAll(secondHalf);
+
+            return points;
         }
     }
 
@@ -214,8 +267,83 @@ public class StrokeGenerator {
         return rv;
     }
 
+    private static Stroke generateStrokeT(LineStrip line, PolygonalBrush brush) {
+        Stroke rv = new Stroke();
+        List<Point> head = brush.genEndCapTriangleStrip(new Vector(line.points.get(0), line.points.get(1)), true);
+
+        if (line.isClosed()) {
+            Point first = head.get(head.size() - 2);
+            Point second = head.get(head.size() - 1);
+            rv.points.add(0, first);
+            rv.points.add(1, second);
+        } else {
+            rv.points.addAll(0, head);
+        }
+
+        for (int i = 1; i < line.points.size() - 1; i++) {
+            brush.relocate(line.points.get(i));
+            Vector v = new Vector(line.points.get(i), line.points.get(i + 1));
+            Pair<List<Point>, List<Point>> tangentVertices = brush.genTangentVertices(v);
+            for (int j = 0; j < tangentVertices.first.size(); j++) {
+                rv.points.add(tangentVertices.first.get(j));
+                rv.points.add(tangentVertices.second.get(j));
+            }
+        }
+
+        brush.relocate(line.points.get(line.points.size() - 1));
+        List<Point> tail = brush.genEndCapTriangleStrip(new Vector(line.points.get(line.points.size() - 1), line.points.get(line.points.size() - 2)), false);
+
+        if (line.isClosed()) {
+            Point first = head.get(head.size() - 2);
+            Point second = head.get(head.size() - 1);
+            rv.points.add(first);
+            rv.points.add(second);
+        } else {
+            rv.points.addAll(tail);
+        }
+
+        return rv;
+    }
+
     public static Polygon generateStroke(LineStrip line, int n, float r) {
         return generateStroke(line, new PolygonalBrush(n, r, line.points.get(0)));
+    }
+
+    public static Stroke generateStrokeT(LineStrip line, int n, float r) {
+        return generateStrokeT(line, new PolygonalBrush(n, r, line.points.get(0)));
+    }
+
+    public static List<Point> strokeToOrderedPoints(TriangleStrip stroke) {
+        List<Point> firstHalf = new ArrayList<>();
+        List<Point> secondHalf = new ArrayList<>();
+        for (int i = 0; i < stroke.points.size(); i += 2) {
+            firstHalf.add(stroke.points.get(i));
+            secondHalf.add(stroke.points.get(i + 1));
+        }
+
+        List<Point> points = new ArrayList<>(firstHalf);
+        Collections.reverse(secondHalf);
+        points.addAll(secondHalf);
+        return points;
+    }
+
+    public static TriangleStrip generateBorder(LineStrip line, int n, float r) {
+        return generateStrokeT(line, new PolygonalBrush(n, r, line.points.get(0), Z_BORDER)).toTriangleStrip();
+    }
+
+    public static TriangleStrip generateBorder(Polygon polygon, int n, float r) {
+        TriangleStrip rv = generateBorder(new LineStrip(polygon.points), n, r);
+
+        for (Polygon hole : polygon.holes) {
+            rv.extend(generateBorder(new LineStrip(hole.points), n, r));
+        }
+
+        return rv;
+    }
+
+    public static TriangleStrip generateBorderFromStroke(Stroke stroke, int n, float r) {
+        LineStrip line = new LineStrip(stroke.toOrderedPoints());
+        return generateBorder(line, n, r);
     }
 
     public static void test() {

@@ -2,13 +2,12 @@ package com.hcmut.test.object;
 
 import android.opengl.GLES20;
 
-import com.hcmut.test.algorithm.BorderGenerator;
 import com.hcmut.test.algorithm.StrokeGenerator;
+import com.hcmut.test.algorithm.StrokeGenerator.Stroke;
 import com.hcmut.test.data.VertexArray;
 import com.hcmut.test.data.Way;
 import com.hcmut.test.geometry.LineStrip;
 import com.hcmut.test.geometry.Point;
-import com.hcmut.test.geometry.Polygon;
 import com.hcmut.test.geometry.Triangle;
 import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.programs.ColorShaderProgram;
@@ -18,8 +17,8 @@ import java.util.HashMap;
 import java.util.List;
 
 public class HighwayDrawer extends Drawable {
-    HashMap<String, List<Triangle>> wayTriangles = new HashMap<>();
-    HashMap<String, TriangleStrip> wayBorderTriangleStrips = new HashMap<>();
+    HashMap<String, TriangleStrip> wayFill = new HashMap<>();
+    HashMap<String, TriangleStrip> wayBorder = new HashMap<>();
     VertexArray wayVertexArray;
     VertexArray wayBorderVertexArray;
     float originX = 0;
@@ -47,31 +46,34 @@ public class HighwayDrawer extends Drawable {
 
     public void addWay(String key, Way way) {
         LineStrip linePoints = new LineStrip(way.toPoints(originX, originY, scale));
-        Polygon polygon = StrokeGenerator.generateStroke(linePoints, 8, 0.02f);
-        List<Triangle> curTriangulatedTriangles = polygon.triangulate();
-        TriangleStrip border = BorderGenerator.generateBorderFromPolygon(polygon, curTriangulatedTriangles, 0.002f);
+        Stroke stroke = StrokeGenerator.generateStrokeT(linePoints, 8, 0.02f);
+        TriangleStrip border = StrokeGenerator.generateBorderFromStroke(stroke, 8, 0.002f);
 
-        wayTriangles.put(key, curTriangulatedTriangles);
-        wayBorderTriangleStrips.put(key, border);
+        wayFill.put(key, stroke.toTriangleStrip());
+        wayBorder.put(key, border);
     }
 
     public void removeWay(String key) {
-        wayTriangles.remove(key);
-        wayBorderTriangleStrips.remove(key);
+        wayFill.remove(key);
+        wayBorder.remove(key);
     }
 
     public void finalizeDrawer() {
-        if (wayTriangles.isEmpty() || wayBorderTriangleStrips.isEmpty()) {
+        if (wayFill.isEmpty() || wayBorder.isEmpty()) {
             return;
         }
 
-        List<Triangle> allTriangles = new ArrayList<>();
-        for (List<Triangle> triangles : wayTriangles.values()) {
-            allTriangles.addAll(triangles);
+        TriangleStrip allFill = null;
+        for (TriangleStrip fill : wayFill.values()) {
+            if (allFill == null) {
+                allFill = fill;
+            } else {
+                allFill.extend(fill);
+            }
         }
 
         TriangleStrip allBorders = null;
-        for (TriangleStrip border : wayBorderTriangleStrips.values()) {
+        for (TriangleStrip border : wayBorder.values()) {
             if (allBorders == null) {
                 allBorders = border;
             } else {
@@ -79,9 +81,9 @@ public class HighwayDrawer extends Drawable {
             }
         }
 
-        assert allBorders != null : "allBorders must not be null";
+        assert allBorders != null && allFill != null : "allBorders and allFill must not be null";
 
-        float[] triangleVertexData = Triangle.toVertexData(allTriangles, 1, 1, 1, 1);
+        float[] triangleVertexData = allFill.toVertexData(1, 1, 1, 1);
         wayVertexArray = new VertexArray(triangleVertexData);
 
         float[] borderVertexData = allBorders.toVertexData(0.5f, 0.5f, 0.5f, 1);
@@ -91,7 +93,7 @@ public class HighwayDrawer extends Drawable {
     private void drawHighway() {
         wayVertexArray.setDataFromVertexData(shaderProgram);
         int pointCount = wayVertexArray.getVertexCount();
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, pointCount);
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, pointCount);
     }
 
     private void drawBorder() {
@@ -101,7 +103,7 @@ public class HighwayDrawer extends Drawable {
     }
 
     public void draw() {
-        if (wayTriangles.isEmpty() || wayBorderTriangleStrips.isEmpty()) {
+        if (wayFill.isEmpty() || wayBorder.isEmpty()) {
             return;
         }
 

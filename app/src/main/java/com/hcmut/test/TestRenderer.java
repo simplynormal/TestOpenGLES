@@ -1,9 +1,9 @@
 package com.hcmut.test;
 
-import static android.opengl.GLES20.GL_TRIANGLES;
+import static android.opengl.GLES20.GL_LINE_STRIP;
+import static android.opengl.GLES20.GL_POINTS;
 import static android.opengl.GLES20.GL_TRIANGLE_STRIP;
 import static android.opengl.GLES20.glClearColor;
-import static android.opengl.GLES20.glDrawArrays;
 import static android.opengl.GLES20.glUniformMatrix4fv;
 
 import android.content.Context;
@@ -12,14 +12,12 @@ import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 import android.util.DisplayMetrics;
 
-import com.hcmut.test.algorithm.BorderGenerator;
 import com.hcmut.test.algorithm.StrokeGenerator;
 import com.hcmut.test.data.VertexArray;
 import com.hcmut.test.data.VertexData;
 import com.hcmut.test.geometry.LineStrip;
 import com.hcmut.test.geometry.Point;
 import com.hcmut.test.geometry.Polygon;
-import com.hcmut.test.geometry.Triangle;
 import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.map.MapReader;
 import com.hcmut.test.object.ObjectBuilder;
@@ -28,10 +26,7 @@ import com.hcmut.test.programs.ColorShaderProgram;
 
 import org.xmlpull.v1.XmlPullParserException;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -71,11 +66,10 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             -2.820912f, 3.2869854f, 0.0f,
     };
     private final float[] vertices2 = {
-            -0.5f, 0.5f, 0f,
-            -0.5f, -0.5f, 0f,
-            0.5f, -0.5f, 0f,
-            0.5f, 0.5f, 0f,
-            -0.5f, 0.5f, 0f,
+            -0.15175f, 0.12061f, 0,
+            0.14604f, 0.22661f, 0,
+            -0.07352f, 0.21651f, 0,
+            0.44637f, 0.22661f, 0
     };
 
     private float oldX = 0;
@@ -205,7 +199,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         GLES20.glViewport(0, 0, width, height);
         final float aspectRatio = width > height ? (float) width / (float) height : (float) height / (float) width;
         Matrix.frustumM(projectionMatrix, 0, -width / (float) height, width / (float) height, -1f, 1f, 1f, 10f);
-        Matrix.setLookAtM(modelViewMatrix, 0, 0f, -1.5f, 2f, 0f, 0, 0f, 0f, 1f, 0f);
+        Matrix.setLookAtM(modelViewMatrix, 0, 0f, 0f, 2f, 0f, 0, 0f, 0f, 1f, 0f);
         Matrix.setIdentityM(transformMatrix, 0);
 
 //        Matrix.orthoM(projectionMatrix, 0, -1f, 1f, -aspectRatio, aspectRatio, -1f, 1f);
@@ -241,32 +235,68 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         TriangleStrip single = new TriangleStrip(vertices1);
         triangles.points.addAll(single.points);
 
+        VertexArray vertexArray = new VertexArray(triangles.toVertexData(0, 0, 1, 1));
+        vertexArray.setDataFromVertexData(colorProgram);
 
-        VertexArray vertexArray = new VertexArray(triangles.toVertexData(0, 0, 0, 1));
-
-        int strideInElements = VertexData.getTotalComponentCount();
-        for (VertexData.VertexAttrib attrib : VertexData.getVertexAttribs()) {
-            int location = colorProgram.getAttributeLocation(attrib.name);
-            vertexArray.setVertexAttribPointer(attrib.offset, location, attrib.count, strideInElements);
-        }
         colorProgram.useProgram();
-        int uProjectionMatrix = colorProgram.getUniformLocation(ColorShaderProgram.U_PROJECTION_MATRIX);
-        glUniformMatrix4fv(uProjectionMatrix, 1, false, projectionMatrix, 0);
-
-        int uModelViewMatrix = colorProgram.getUniformLocation(ColorShaderProgram.U_MODEL_VIEW_MATRIX);
-        glUniformMatrix4fv(uModelViewMatrix, 1, false, modelViewMatrix, 0);
 
         GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, triangles.points.size() - single.points.size());
         GLES20.glDrawArrays(GLES20.GL_POINTS, triangles.points.size() - single.points.size(), single.points.size());
     }
 
+    public void testStroke2() {
+        GLES20.glDisable(GLES20.GL_DEPTH_TEST);
+        VertexData.resetRandom();
+
+        float[] chosenVertices = vertices1;
+
+        float[] first = new float[]{
+                chosenVertices[0], chosenVertices[1], chosenVertices[2],
+        };
+
+        for (int i = 0; i < chosenVertices.length; i += 3) {
+            chosenVertices[i] -= first[0];
+            chosenVertices[i + 1] -= first[1];
+            chosenVertices[i + 2] -= first[2];
+        }
+
+        StrokeGenerator.Stroke rvStroke = StrokeGenerator.generateStrokeT(new LineStrip(chosenVertices), 10, 0.02f);
+        TriangleStrip rv = rvStroke.toTriangleStrip();
+        TriangleStrip rvLine = new TriangleStrip(rvStroke.toOrderedPoints());
+        TriangleStrip rvBorder = StrokeGenerator.generateBorderFromStroke(rvStroke, 10, 0.002f);
+        List<Point> points = Point.toPoints(chosenVertices);
+
+        VertexArray rvVertexArray = new VertexArray(rv.toVertexData(0.5f, 0.5f, 0.5f, 1));
+        VertexArray rvLineVertexArray = new VertexArray(rvLine.toVertexData(0, 0, 0, 1));
+        VertexArray rvBorderVertexArray = new VertexArray(rvBorder.toVertexData(0, 0, 0, 0.7f));
+        VertexArray singleVertexArray = new VertexArray(VertexData.toVertexData(points, 0, 0, 1, 1));
+
+
+        colorProgram.useProgram();
+
+        rvVertexArray.setDataFromVertexData(colorProgram);
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, rv.points.size());
+
+        rvLineVertexArray.setDataFromVertexData(colorProgram);
+        GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, rvLine.points.size());
+
+        rvBorderVertexArray.setDataFromVertexData(colorProgram);
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, rvBorder.points.size());
+        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, rvBorder.points.size());
+
+        singleVertexArray.setDataFromVertexData(colorProgram);
+        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, points.size());
+    }
+
     @Override
     public void onDrawFrame(GL10 glUnused) {
-        // Clear the rendering surface.
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_STENCIL_BUFFER_BIT);
         GLES20.glEnable(GLES20.GL_DEPTH_TEST);
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+        GLES20.glEnable(GLES20.GL_BLEND);
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_STENCIL_BUFFER_BIT);
 
         builder.draw();
+//        testStroke2();
 //        testStroke();
     }
 }

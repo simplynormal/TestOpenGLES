@@ -7,6 +7,9 @@ import androidx.annotation.Nullable;
 
 import com.hcmut.test.data.VertexData;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class Point {
     public final float x;
     public final float y;
@@ -46,6 +49,16 @@ public class Point {
 
     public float[] toVertexData(float r, float g, float b, float a) {
         return VertexData.toVertexData(this, r, g, b, a);
+    }
+
+    public static List<Point> toPoints(float[] points) {
+        return new ArrayList<>() {
+            {
+                for (int i = 0; i < points.length; i += 3) {
+                    add(new Point(points[i], points[i + 1], points[i + 2]));
+                }
+            }
+        };
     }
 
     @NonNull
