@@ -83,21 +83,19 @@ public class HighwayDrawer extends Drawable {
 
         assert allBorders != null && allFill != null : "allBorders and allFill must not be null";
 
-        float[] triangleVertexData = allFill.toVertexData(1, 1, 1, 1);
-        wayVertexArray = new VertexArray(triangleVertexData);
+        wayVertexArray = new VertexArray(shaderProgram, allFill, 1, 1, 1, 1);
 
-        float[] borderVertexData = allBorders.toVertexData(0.5f, 0.5f, 0.5f, 1);
-        wayBorderVertexArray = new VertexArray(borderVertexData);
+        wayBorderVertexArray = new VertexArray(shaderProgram, allBorders, 0.5f, 0.5f, 0.5f, 1);
     }
 
     private void drawHighway() {
-        wayVertexArray.setDataFromVertexData(shaderProgram);
+        wayVertexArray.setDataFromVertexData();
         int pointCount = wayVertexArray.getVertexCount();
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, pointCount);
     }
 
     private void drawBorder() {
-        wayBorderVertexArray.setDataFromVertexData(shaderProgram);
+        wayBorderVertexArray.setDataFromVertexData();
         int pointCount = wayBorderVertexArray.getVertexCount();
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, pointCount);
     }

@@ -7,14 +7,21 @@ import static android.opengl.GLES20.glClearColor;
 import static android.opengl.GLES20.glUniformMatrix4fv;
 
 import android.content.Context;
+import android.content.res.AssetManager;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 import android.util.DisplayMetrics;
 
+import com._2gis.cartoshka.CartoParser;
+import com._2gis.cartoshka.tree.Block;
+import com._2gis.cartoshka.tree.expression.Literal;
+import com._2gis.cartoshka.visitor.ConstantFoldVisitor;
+import com._2gis.cartoshka.visitor.EvaluateVisitor;
+import com._2gis.cartoshka.visitor.PrintVisitor;
+import com._2gis.cartoshka.visitor.VolatilityCheckVisitor;
 import com.hcmut.test.algorithm.StrokeGenerator;
 import com.hcmut.test.data.VertexArray;
-import com.hcmut.test.data.VertexData;
 import com.hcmut.test.geometry.LineStrip;
 import com.hcmut.test.geometry.Point;
 import com.hcmut.test.geometry.Polygon;
@@ -22,10 +29,18 @@ import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.map.MapReader;
 import com.hcmut.test.object.ObjectBuilder;
 import com.hcmut.test.data.Way;
+import com.hcmut.test.object.TextDrawer;
 import com.hcmut.test.programs.ColorShaderProgram;
+import com.hcmut.test.programs.TextShaderProgram;
 
 import org.xmlpull.v1.XmlPullParserException;
 
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.microedition.khronos.egl.EGLConfig;
@@ -34,6 +49,7 @@ import javax.microedition.khronos.opengles.GL10;
 public class TestRenderer implements GLSurfaceView.Renderer {
     private final Context context;
     private ColorShaderProgram colorProgram;
+    private TextShaderProgram textProgram;
     private ObjectBuilder builder;
     MapReader mapReader;
     private final float[] vertices = {
@@ -94,6 +110,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     public void onSurfaceCreated(GL10 glUnused, EGLConfig config) {
         glClearColor(0.95f, 0.94f, 0.91f, 1f);
         colorProgram = new ColorShaderProgram(context, projectionMatrix, modelViewMatrix, transformMatrix);
+        textProgram = new TextShaderProgram(context, projectionMatrix, modelViewMatrix, transformMatrix);
 
 //        float minLon = 106.73603f;
 //        float maxLon = 106.74072f;
@@ -107,8 +124,8 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
         try {
             mapReader = new MapReader(context, R.raw.map);
-            mapReader.setBounds(minLon, maxLon, minLat, maxLat);
-            mapReader.read();
+//            mapReader.setBounds(minLon, maxLon, minLat, maxLat);
+//            mapReader.read();
         } catch (XmlPullParserException e) {
             e.printStackTrace();
         }
@@ -139,6 +156,8 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             }
         }
         builder.finalizeDrawer();
+
+//        testFoo();
     }
 
     public void handleTouchDrag(float eventX, float eventY) {
@@ -206,6 +225,48 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 //        Matrix.setIdentityM(modelViewMatrix, 0);
     }
 
+    public void testFoo() {
+        // Resource to file
+        List<String> files;
+        InputStream[] inputStreams;
+        try {
+            files = new ArrayList<>(List.of(context.getAssets().list("style/carto")));
+            inputStreams = new InputStream[files.size()];
+            for (int i = 0; i < files.size(); i++) {
+                inputStreams[i] = context.getAssets().open("style/carto/" + files.get(i));
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        CartoParser parser = new CartoParser();
+        Block[] styles = new Block[inputStreams.length];
+        for (int i = 0; i < inputStreams.length; i++) {
+            InputStream inputStream = inputStreams[i];
+            String file = files.get(i);
+            try (InputStreamReader reader = new InputStreamReader(inputStream)) {
+                // parsing the file
+                styles[i] = parser.parse(file, reader);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        // constant folding
+        for (Block style : styles) {
+            style.accept(new ConstantFoldVisitor(), null);
+            Literal p = style.accept(new EvaluateVisitor(), null);
+            Boolean b = style.accept(new VolatilityCheckVisitor(), null);
+
+//            System.out.println("Literal: " + p);
+//            System.out.println("Volatility: " + b);
+
+            // pretty print
+            String pretty = style.accept(new PrintVisitor(), null);
+            System.out.println(pretty);
+        }
+    }
+
     public void testClosedShape() {
         ObjectBuilder builder1 = new ObjectBuilder(colorProgram);
         Way way = new Way(vertices);
@@ -217,8 +278,6 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     }
 
     public void testStroke() {
-        VertexData.resetRandom();
-
         float[] first = new float[]{
                 vertices1[0], vertices1[1], vertices1[2],
         };
@@ -235,8 +294,8 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         TriangleStrip single = new TriangleStrip(vertices1);
         triangles.points.addAll(single.points);
 
-        VertexArray vertexArray = new VertexArray(triangles.toVertexData(0, 0, 1, 1));
-        vertexArray.setDataFromVertexData(colorProgram);
+        VertexArray vertexArray = new VertexArray(colorProgram, triangles, 0, 0, 1, 1);
+        vertexArray.setDataFromVertexData();
 
         colorProgram.useProgram();
 
@@ -246,7 +305,6 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
     public void testStroke2() {
         GLES20.glDisable(GLES20.GL_DEPTH_TEST);
-        VertexData.resetRandom();
 
         float[] chosenVertices = vertices1;
 
@@ -266,26 +324,30 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         TriangleStrip rvBorder = StrokeGenerator.generateBorderFromStroke(rvStroke, 10, 0.002f);
         List<Point> points = Point.toPoints(chosenVertices);
 
-        VertexArray rvVertexArray = new VertexArray(rv.toVertexData(0.5f, 0.5f, 0.5f, 1));
-        VertexArray rvLineVertexArray = new VertexArray(rvLine.toVertexData(0, 0, 0, 1));
-        VertexArray rvBorderVertexArray = new VertexArray(rvBorder.toVertexData(0, 0, 0, 0.7f));
-        VertexArray singleVertexArray = new VertexArray(VertexData.toVertexData(points, 0, 0, 1, 1));
+        VertexArray rvVertexArray = new VertexArray(colorProgram, rv, 0.5f, 0.5f, 0.5f, 1);
+        VertexArray rvLineVertexArray = new VertexArray(colorProgram, rvLine, 0, 0, 0, 1);
+        VertexArray rvBorderVertexArray = new VertexArray(colorProgram, rvBorder, 0, 0, 0, 0.7f);
+        VertexArray singleVertexArray = new VertexArray(colorProgram, points, 0, 0, 1, 1);
 
 
         colorProgram.useProgram();
 
-        rvVertexArray.setDataFromVertexData(colorProgram);
+        rvVertexArray.setDataFromVertexData();
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, rv.points.size());
 
-        rvLineVertexArray.setDataFromVertexData(colorProgram);
+        rvLineVertexArray.setDataFromVertexData();
         GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, rvLine.points.size());
 
-        rvBorderVertexArray.setDataFromVertexData(colorProgram);
+        rvBorderVertexArray.setDataFromVertexData();
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, rvBorder.points.size());
         GLES20.glDrawArrays(GLES20.GL_POINTS, 0, rvBorder.points.size());
 
-        singleVertexArray.setDataFromVertexData(colorProgram);
+        singleVertexArray.setDataFromVertexData();
         GLES20.glDrawArrays(GLES20.GL_POINTS, 0, points.size());
+    }
+
+    void testText() {
+        TextDrawer.test(textProgram, context);
     }
 
     @Override
@@ -295,7 +357,8 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         GLES20.glEnable(GLES20.GL_BLEND);
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_STENCIL_BUFFER_BIT);
 
-        builder.draw();
+//        builder.draw();
+        testText();
 //        testStroke2();
 //        testStroke();
     }

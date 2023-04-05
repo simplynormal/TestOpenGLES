@@ -5,8 +5,6 @@ import android.opengl.GLES20;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.hcmut.test.data.VertexData;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,14 +39,6 @@ public class Point {
 
     public Point add(Vector v) {
         return new Point(this.x + v.x, this.y + v.y, this.z + v.z);
-    }
-
-    public float[] toVertexData() {
-        return VertexData.toVertexData(this, true);
-    }
-
-    public float[] toVertexData(float r, float g, float b, float a) {
-        return VertexData.toVertexData(this, r, g, b, a);
     }
 
     public static List<Point> toPoints(float[] points) {

@@ -1,6 +1,5 @@
 package com.hcmut.test.geometry;
 
-import com.hcmut.test.data.VertexData;
 import com.hcmut.test.data.Way;
 
 import java.util.ArrayList;
@@ -38,13 +37,5 @@ public class LineStrip {
 
     public boolean isClosed() {
         return points.size() > 0 && points.get(0).equals(points.get(points.size() - 1));
-    }
-
-    public float[] toVertexData(float r, float g, float b, float a) {
-        return VertexData.toVertexData(points, r, g, b, a);
-    }
-
-    public float[] toVertexData() {
-        return VertexData.toVertexData(points, true);
     }
 }

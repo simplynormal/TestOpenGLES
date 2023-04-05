@@ -12,44 +12,21 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class Polygon {
-    public final List<Point> points;
+public class Polygon extends PointList {
     public final List<Polygon> holes;
 
     public Polygon(List<Point> points) {
-        this.points = points;
+        super(points);
         this.holes = new ArrayList<>();
         checkInit();
     }
 
     public Polygon(Way way) {
-        this.points = new ArrayList<>();
-        for (Node node : way.nodes) {
-            this.points.add(new Point(node.lon, node.lat));
-        }
-        this.holes = new ArrayList<>();
-        checkInit();
-    }
-
-    public Polygon(Point[] points) {
-        this.points = new ArrayList<>(Arrays.asList(points));
-        this.holes = new ArrayList<>();
-        checkInit();
-    }
-
-    public Polygon(Point p1, Point p2, Point p3) {
-        this.points = List.of(p1, p2, p3);
-        this.holes = new ArrayList<>();
-        checkInit();
-    }
-
-    public Polygon(float[] points) {
-        this.points = new ArrayList<>();
-        for (int i = 0; i < points.length; i += 3) {
-            this.points.add(new Point(points[i], points[i + 1], points[i + 2]));
-        }
-        this.holes = new ArrayList<>();
-        checkInit();
+        this(new ArrayList<>() {{
+            for (Node node : way.nodes) {
+                add(new Point(node.lon, node.lat));
+            }
+        }});
     }
 
     public void addHole(Polygon hole) {

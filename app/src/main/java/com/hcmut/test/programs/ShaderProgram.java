@@ -15,8 +15,24 @@ import android.content.Context;
 import com.hcmut.test.utils.ShaderHelper;
 import com.hcmut.test.utils.TextResourceReader;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public abstract class ShaderProgram {
+    public static class VertexAttrib {
+        public final int count;
+        public final String name;
+        public final int offset;
+
+        public VertexAttrib(int count, String name, VertexAttrib prev) {
+            this.count = count;
+            this.name = name;
+            this.offset = prev == null ? 0 : prev.offset + prev.count;
+        }
+    }
+
     protected final int program;
+    private Context context;
 
     protected ShaderProgram(Context context, int vertexShaderResourceId,
                             int fragmentShaderResourceId) {
@@ -26,10 +42,26 @@ public abstract class ShaderProgram {
                         .readTextFileFromResource(context, vertexShaderResourceId),
                 TextResourceReader
                         .readTextFileFromResource(context, fragmentShaderResourceId));
+        this.context = context;
     }
 
     public abstract int getUniformLocation(String uniformName);
+
     public abstract int getAttributeLocation(String attributeName);
+
+    protected static List<VertexAttrib> getVertexAttribs(String[] vertexAttribNames, int[] vertexAttribs) {
+        List<VertexAttrib> result = new ArrayList<>();
+        VertexAttrib prev = null;
+        for (int i = 0; i < vertexAttribs.length; i++) {
+            VertexAttrib attrib = new VertexAttrib(vertexAttribs[i], vertexAttribNames[i], prev);
+            result.add(attrib);
+            prev = attrib;
+        }
+        return result;
+    }
+
+    public abstract List<VertexAttrib> getVertexAttribs();
+    public abstract int getTotalVertexAttribCount();
 
     public void useProgram() {
         // Set the current OpenGL shader program to this program.

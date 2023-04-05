@@ -17,7 +17,7 @@ import android.opengl.GLES20;
 
 import com.hcmut.test.R;
 
-import java.util.HashMap;
+import java.util.List;
 
 public class ColorShaderProgram extends ShaderProgram {
     public static final String U_PROJECTION_MATRIX = "u_ProjectionMatrix";
@@ -25,14 +25,23 @@ public class ColorShaderProgram extends ShaderProgram {
     public static final String U_TRANSFORM_MATRIX = "u_TransformMatrix";
     public static final String A_POSITION = "a_Position";
     public static final String A_COLOR = "a_Color";
+    private static final int[] VERTEX_ATTRIBS = new int[]{
+            3, 4,
+    };
+    private static final int TOTAL_VERTEX_ATTRIB_COUNT = 7;
+    private static final String[] VERTEX_ATTRIB_NAMES = new String[]{
+            A_POSITION,
+            A_COLOR,
+    };
+    private static final List<VertexAttrib> VERTEX_ATTRIB_LIST = getVertexAttribs(VERTEX_ATTRIB_NAMES, VERTEX_ATTRIBS);
     private final float[] projectionMatrix;
     private final float[] modelViewMatrix;
     private final float[] transformMatrix;
 
 
     public ColorShaderProgram(Context context, float[] projectionMatrix, float[] modelViewMatrix, float[] transformMatrix) {
-        super(context, R.raw.vert_shader,
-                R.raw.frag_shader);
+        super(context, R.raw.simple_vert,
+                R.raw.simple_frag);
         this.projectionMatrix = projectionMatrix;
         this.modelViewMatrix = modelViewMatrix;
         this.transformMatrix = transformMatrix;
@@ -57,5 +66,15 @@ public class ColorShaderProgram extends ShaderProgram {
 
     public int getAttributeLocation(String attributeName) {
         return glGetAttribLocation(program, attributeName);
+    }
+
+    @Override
+    public List<VertexAttrib> getVertexAttribs() {
+        return VERTEX_ATTRIB_LIST;
+    }
+
+    @Override
+    public int getTotalVertexAttribCount() {
+        return TOTAL_VERTEX_ATTRIB_COUNT;
     }
 }

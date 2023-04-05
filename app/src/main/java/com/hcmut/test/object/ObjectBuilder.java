@@ -8,7 +8,7 @@
  ***/
 package com.hcmut.test.object;
 
-import com.hcmut.test.data.VertexData;
+import com.hcmut.test.data.VertexArray;
 import com.hcmut.test.data.Way;
 import com.hcmut.test.programs.ColorShaderProgram;
 
@@ -19,7 +19,6 @@ public class ObjectBuilder {
 
 
     public ObjectBuilder(ColorShaderProgram colorProgram) {
-        VertexData.resetRandom();
         this.colorProgram = colorProgram;
         areaDrawer = new AreaDrawer(colorProgram);
         highwayDrawer = new HighwayDrawer(colorProgram);
@@ -39,8 +38,6 @@ public class ObjectBuilder {
     }
 
     public void draw() {
-        VertexData.resetRandom();
-
         areaDrawer.draw();
         highwayDrawer.draw();
     }

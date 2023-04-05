@@ -12,25 +12,47 @@ import static android.opengl.GLES20.GL_FLOAT;
 import static android.opengl.GLES20.glEnableVertexAttribArray;
 import static android.opengl.GLES20.glVertexAttribPointer;
 
+import com.hcmut.test.geometry.Point;
+import com.hcmut.test.geometry.PointList;
+import com.hcmut.test.geometry.Polygon;
+import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.programs.ShaderProgram;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 
 public class VertexArray {
     private static final int BYTES_PER_FLOAT = 4;
     private final FloatBuffer floatBuffer;
+    private final ShaderProgram shaderProgram;
     private final int vertexCount;
 
-    public VertexArray(float[] vertexData) {
+    public VertexArray(ShaderProgram shaderProgram, float[] vertexData) {
         floatBuffer = ByteBuffer
                 .allocateDirect(vertexData.length * BYTES_PER_FLOAT)
                 .order(ByteOrder.nativeOrder())
                 .asFloatBuffer()
                 .put(vertexData);
-        vertexCount = vertexData.length / VertexData.getTotalComponentCount();
+        this.shaderProgram = shaderProgram;
+        this.vertexCount = vertexData.length / shaderProgram.getTotalVertexAttribCount();
     }
+
+    public VertexArray(ShaderProgram shaderProgram, Point p, float r, float g, float b, float a) {
+        this(shaderProgram, toVertexData(p, r, g, b, a));
+    }
+
+    public VertexArray(ShaderProgram shaderProgram, List<Point> points, float r, float g, float b, float a) {
+        this(shaderProgram, toVertexData(shaderProgram, points, r, g, b, a));
+    }
+
+    public VertexArray(ShaderProgram shaderProgram, PointList p, float r, float g, float b, float a) {
+        this(shaderProgram, p.points, r, g, b, a);
+    }
+
 
     public void setVertexAttribPointer(int dataOffset, int attributeLocation,
                                        int componentCount, int strideInElements) {
@@ -42,15 +64,29 @@ public class VertexArray {
         floatBuffer.position(0);
     }
 
-    public void setDataFromVertexData(ShaderProgram shaderProgram) {
-        int strideInElements = VertexData.getTotalComponentCount();
-        for (VertexData.VertexAttrib attrib : VertexData.getVertexAttribs()) {
+    public void setDataFromVertexData() {
+        List<ShaderProgram.VertexAttrib> attribs = shaderProgram.getVertexAttribs();
+        int totalComponents = shaderProgram.getTotalVertexAttribCount();
+        for (ShaderProgram.VertexAttrib attrib : attribs) {
             int location = shaderProgram.getAttributeLocation(attrib.name);
-            setVertexAttribPointer(attrib.offset, location, attrib.count, strideInElements);
+            setVertexAttribPointer(attrib.offset, location, attrib.count, totalComponents);
         }
     }
 
     public int getVertexCount() {
         return vertexCount;
+    }
+
+    private static float[] toVertexData(Point p, float r, float g, float b, float a) {
+        return new float[]{p.x, p.y, p.z, r, g, b, a};
+    }
+
+    private static float[] toVertexData(ShaderProgram shaderProgram, List<Point> points, float r, float g, float b, float a) {
+        float[] result = new float[points.size() * shaderProgram.getTotalVertexAttribCount()];
+        for (int i = 0; i < points.size(); i++) {
+            float[] vertexData = toVertexData(points.get(i), r, g, b, a);
+            System.arraycopy(vertexData, 0, result, i * vertexData.length, vertexData.length);
+        }
+        return result;
     }
 }

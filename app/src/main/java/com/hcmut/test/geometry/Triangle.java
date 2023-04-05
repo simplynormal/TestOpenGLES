@@ -2,13 +2,6 @@ package com.hcmut.test.geometry;
 
 import androidx.annotation.NonNull;
 
-import com.hcmut.test.data.Node;
-import com.hcmut.test.data.VertexData;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-
 public class Triangle {
     public final Point p1;
     public final Point p2;
@@ -44,26 +37,6 @@ public class Triangle {
         return v1.angle(v2);
     }
 
-    public float[] toVertexData() {
-        return VertexData.toVertexData(new ArrayList<>() {
-            {
-                add(p1);
-                add(p2);
-                add(p3);
-            }
-        }, true);
-    }
-
-    public float[] toVertexData(float r, float g, float b, float a) {
-        return VertexData.toVertexData(new ArrayList<>() {
-            {
-                add(p1);
-                add(p2);
-                add(p3);
-            }
-        }, r, g, b, a);
-    }
-
     @NonNull
     @Override
     public String toString() {
@@ -72,31 +45,5 @@ public class Triangle {
                 ", p2=" + p2 +
                 ", p3=" + p3 +
                 '}';
-    }
-
-    public static float[] toVertexData(List<Triangle> triangles, float r, float g, float b, float a) {
-        float[] triangleVertexData = new float[0];
-        for (Triangle triangle : triangles) {
-            float[] curTriangleVertexData = triangle.toVertexData(r, g, b, a);
-            float[] newTriangleVertexData = new float[triangleVertexData.length + curTriangleVertexData.length];
-            System.arraycopy(triangleVertexData, 0, newTriangleVertexData, 0, triangleVertexData.length);
-            System.arraycopy(curTriangleVertexData, 0, newTriangleVertexData, triangleVertexData.length, curTriangleVertexData.length);
-            triangleVertexData = newTriangleVertexData;
-        }
-
-        return triangleVertexData;
-    }
-
-    public static float[] toVertexData(List<Triangle> triangles) {
-        float[] triangleVertexData = new float[0];
-        for (Triangle triangle : triangles) {
-            float[] curTriangleVertexData = triangle.toVertexData();
-            float[] newTriangleVertexData = new float[triangleVertexData.length + curTriangleVertexData.length];
-            System.arraycopy(triangleVertexData, 0, newTriangleVertexData, 0, triangleVertexData.length);
-            System.arraycopy(curTriangleVertexData, 0, newTriangleVertexData, triangleVertexData.length, curTriangleVertexData.length);
-            triangleVertexData = newTriangleVertexData;
-        }
-
-        return triangleVertexData;
     }
 }

@@ -48,8 +48,15 @@ public class AreaDrawer extends Drawable {
             wayTriangles.addAll(curTriangulatedTriangles);
         }
 
-        float[] triangleVertexData = Triangle.toVertexData(wayTriangles, 0.67f, 0.83f, 0.87f, 1f);
-        wayVertexArray = new VertexArray(triangleVertexData);
+        wayVertexArray = new VertexArray(shaderProgram,new ArrayList<>() {
+            {
+                for (Triangle triangle : wayTriangles) {
+                    add(triangle.p1);
+                    add(triangle.p2);
+                    add(triangle.p3);
+                }
+            }
+        }, 0.67f, 0.83f, 0.87f, 1f);
     }
 
     public void draw() {
@@ -58,7 +65,7 @@ public class AreaDrawer extends Drawable {
         }
 
         shaderProgram.useProgram();
-        wayVertexArray.setDataFromVertexData(shaderProgram);
+        wayVertexArray.setDataFromVertexData();
         glDrawArrays(GL_TRIANGLES, 0, wayTriangles.size() * 3);
     }
 }
