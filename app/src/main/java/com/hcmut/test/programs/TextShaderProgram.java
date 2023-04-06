@@ -31,7 +31,6 @@ public class TextShaderProgram extends ShaderProgram {
     public static final String U_MODEL_VIEW_MATRIX = "u_ModelViewMatrix";
     public static final String U_TRANSFORM_MATRIX = "u_TransformMatrix";
     public static final String U_TEXTURE_UNIT = "u_TextureUnit";
-    public static final String U_TEXT_COLOR = "u_TextColor";
     public static final String A_POSITION = "a_Position";
     public static final String A_TEX_COORD = "a_TexCoord";
     private static final int[] VERTEX_ATTRIBS = new int[]{
@@ -82,11 +81,6 @@ public class TextShaderProgram extends ShaderProgram {
     @Override
     public int getTotalVertexAttribCount() {
         return TOTAL_VERTEX_ATTRIB_COUNT;
-    }
-
-    public void setTextColor(float r, float g, float b, float a) {
-        int uTextColor = getUniformLocation(U_TEXT_COLOR);
-        GLES20.glUniform4f(uTextColor, r, g, b, a);
     }
 
     public int loadTexture(@NonNull Bitmap bitmap) {

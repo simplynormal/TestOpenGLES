@@ -66,13 +66,13 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             -0.5f, 0.5f, 0f,
     };
     private final float[] vertices1 = {
-            -2.843159f, 3.132369f, 0.0f,
-            -2.340378f, 3.058398f, 0.0f,
-            -2.2914348f, 3.0511677f, 0.0f,
-            -2.10901f, 3.0278084f, 0.0f,
-            -2.0689654f, 2.7814236f, 0.0f,
-            -2.0823135f, 2.7491655f, 0.0f,
-            -2.10901f, 2.7202446f, 0.0f,
+//            -2.843159f, 3.132369f, 0.0f,
+//            -2.340378f, 3.058398f, 0.0f,
+//            -2.2914348f, 3.0511677f, 0.0f,
+//            -2.10901f, 3.0278084f, 0.0f,
+//            -2.0689654f, 2.7814236f, 0.0f,
+//            -2.0823135f, 2.7491655f, 0.0f,
+//            -2.10901f, 2.7202446f, 0.0f,
             -2.3759732f, 2.7513902f, 0.0f,
             -2.8476083f, 2.8120131f, 0.0f,
             -2.8921022f, 2.8515015f, 0.0f,
@@ -278,33 +278,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     }
 
     public void testStroke() {
-        float[] first = new float[]{
-                vertices1[0], vertices1[1], vertices1[2],
-        };
-
-        for (int i = 0; i < vertices1.length; i += 3) {
-            vertices1[i] -= first[0];
-            vertices1[i + 1] -= first[1];
-            vertices1[i + 2] -= first[2];
-        }
-
-        Polygon rv = StrokeGenerator.generateStroke(new LineStrip(vertices1), 8, 0.02f);
-//        Polygon rv = new Polygon(vertices1);
-        TriangleStrip triangles = new TriangleStrip(rv.points);
-        TriangleStrip single = new TriangleStrip(vertices1);
-        triangles.points.addAll(single.points);
-
-        VertexArray vertexArray = new VertexArray(colorProgram, triangles, 0, 0, 1, 1);
-        vertexArray.setDataFromVertexData();
-
-        colorProgram.useProgram();
-
-        GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, triangles.points.size() - single.points.size());
-        GLES20.glDrawArrays(GLES20.GL_POINTS, triangles.points.size() - single.points.size(), single.points.size());
-    }
-
-    public void testStroke2() {
-        GLES20.glDisable(GLES20.GL_DEPTH_TEST);
+//        GLES20.glDisable(GLES20.GL_DEPTH_TEST);
 
         float[] chosenVertices = vertices1;
 
@@ -318,13 +292,13 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             chosenVertices[i + 2] -= first[2];
         }
 
-        StrokeGenerator.Stroke rvStroke = StrokeGenerator.generateStrokeT(new LineStrip(chosenVertices), 10, 0.02f);
+        StrokeGenerator.Stroke rvStroke = StrokeGenerator.generateStrokeT(new LineStrip(chosenVertices), 10, 0.1f);
         TriangleStrip rv = rvStroke.toTriangleStrip();
         TriangleStrip rvLine = new TriangleStrip(rvStroke.toOrderedPoints());
         TriangleStrip rvBorder = StrokeGenerator.generateBorderFromStroke(rvStroke, 10, 0.002f);
         List<Point> points = Point.toPoints(chosenVertices);
 
-        VertexArray rvVertexArray = new VertexArray(colorProgram, rv, 0.5f, 0.5f, 0.5f, 1);
+        VertexArray rvVertexArray = new VertexArray(colorProgram, rv, 1f, 1f, 1f, 1);
         VertexArray rvLineVertexArray = new VertexArray(colorProgram, rvLine, 0, 0, 0, 1);
         VertexArray rvBorderVertexArray = new VertexArray(colorProgram, rvBorder, 0, 0, 0, 0.7f);
         VertexArray singleVertexArray = new VertexArray(colorProgram, points, 0, 0, 1, 1);
@@ -347,7 +321,26 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     }
 
     void testText() {
-        TextDrawer.test(textProgram, context);
+        GLES20.glDisable(GLES20.GL_DEPTH_TEST);
+        float[] chosenVertices = vertices1;
+
+        float[] first = new float[]{
+                chosenVertices[0], chosenVertices[1], chosenVertices[2],
+        };
+
+        for (int i = 0; i < chosenVertices.length; i += 3) {
+            chosenVertices[i] -= first[0];
+            chosenVertices[i + 1] -= first[1];
+            chosenVertices[i + 2] -= first[2];
+        }
+
+        List<Point> points = Point.toPoints(chosenVertices);
+        TextDrawer.test(textProgram, context, points);
+
+        colorProgram.useProgram();
+        VertexArray singleVertexArray = new VertexArray(colorProgram, points, 0, 0, 1, 1);
+        singleVertexArray.setDataFromVertexData();
+        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, points.size());
     }
 
     @Override
@@ -358,8 +351,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_STENCIL_BUFFER_BIT);
 
 //        builder.draw();
-        testText();
-//        testStroke2();
 //        testStroke();
+        testText();
     }
 }

@@ -27,9 +27,14 @@ import java.util.Random;
 
 public class VertexArray {
     private static final int BYTES_PER_FLOAT = 4;
+    private static final int seed = 69;
+    private static Random random = new Random(seed);
     private final FloatBuffer floatBuffer;
     private final ShaderProgram shaderProgram;
     private final int vertexCount;
+    public static void resetRandom() {
+        random = new Random(seed);
+    }
 
     public VertexArray(ShaderProgram shaderProgram, float[] vertexData) {
         floatBuffer = ByteBuffer
@@ -49,8 +54,16 @@ public class VertexArray {
         this(shaderProgram, toVertexData(shaderProgram, points, r, g, b, a));
     }
 
+    public VertexArray(ShaderProgram shaderProgram, List<Point> points) {
+        this(shaderProgram, toVertexData(shaderProgram, points));
+    }
+
     public VertexArray(ShaderProgram shaderProgram, PointList p, float r, float g, float b, float a) {
         this(shaderProgram, p.points, r, g, b, a);
+    }
+
+    public VertexArray(ShaderProgram shaderProgram, PointList p) {
+        this(shaderProgram, p.points);
     }
 
 
@@ -77,11 +90,24 @@ public class VertexArray {
         return vertexCount;
     }
 
-    private static float[] toVertexData(Point p, float r, float g, float b, float a) {
+    public static float[] toVertexData(Point p, float r, float g, float b, float a) {
         return new float[]{p.x, p.y, p.z, r, g, b, a};
     }
 
-    private static float[] toVertexData(ShaderProgram shaderProgram, List<Point> points, float r, float g, float b, float a) {
+    public static float[] toVertexData(ShaderProgram shaderProgram, List<Point> points, float r, float g, float b, float a) {
+        float[] result = new float[points.size() * shaderProgram.getTotalVertexAttribCount()];
+        for (int i = 0; i < points.size(); i++) {
+            float[] vertexData = toVertexData(points.get(i), r, g, b, a);
+            System.arraycopy(vertexData, 0, result, i * vertexData.length, vertexData.length);
+        }
+        return result;
+    }
+
+    public static float[] toVertexData(ShaderProgram shaderProgram, List<Point> points) {
+        float r = random.nextFloat();
+        float g = random.nextFloat();
+        float b = random.nextFloat();
+        float a = 0.5f;
         float[] result = new float[points.size() * shaderProgram.getTotalVertexAttribCount()];
         for (int i = 0; i < points.size(); i++) {
             float[] vertexData = toVertexData(points.get(i), r, g, b, a);
