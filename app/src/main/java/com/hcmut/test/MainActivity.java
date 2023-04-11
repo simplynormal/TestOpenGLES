@@ -234,18 +234,19 @@ public class MainActivity extends Activity {
                         eventYs.add(event.getY(i));
                     }
                     if (eventType == MotionEvent.ACTION_POINTER_DOWN) {
-                        System.out.println("ACTION_POINTER_DOWN" + eventXs + " " + eventYs);
+                        mGLSurfaceView.queueEvent(() -> testRenderer.actionPointerDown(eventXs, eventYs));
                     } else if (eventType == MotionEvent.ACTION_MOVE) {
-                        System.out.println("ACTION_MOVE" + eventXs + " " + eventYs);
-                        mGLSurfaceView.queueEvent(() -> testRenderer.handleZoom(eventXs, eventYs));
+                        mGLSurfaceView.queueEvent(() -> testRenderer.actionPointerMove(eventXs, eventYs));
                     } else if (eventType == MotionEvent.ACTION_POINTER_UP) {
-                        mGLSurfaceView.queueEvent(testRenderer::handleResetZoom);
+                        mGLSurfaceView.queueEvent(() -> testRenderer.actionPointerUp(eventXs, eventYs));
                     }
 
                 } else if (eventType == MotionEvent.ACTION_DOWN) {
-                    mGLSurfaceView.queueEvent(() -> testRenderer.handleTouchPress(eventX, eventY));
+                    mGLSurfaceView.queueEvent(() -> testRenderer.actionDown(eventX, eventY));
                 } else if (eventType == MotionEvent.ACTION_MOVE) {
-                    mGLSurfaceView.queueEvent(() -> testRenderer.handleTouchDrag(eventX, eventY));
+                    mGLSurfaceView.queueEvent(() -> testRenderer.actionMove(eventX, eventY));
+                } else if (eventType == MotionEvent.ACTION_POINTER_UP) {
+                    mGLSurfaceView.queueEvent(() -> testRenderer.actionUp(eventX, eventY));
                 }
                 return true;
             } else {

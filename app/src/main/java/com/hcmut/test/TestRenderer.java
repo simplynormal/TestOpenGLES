@@ -1,13 +1,7 @@
 package com.hcmut.test;
 
-import static android.opengl.GLES20.GL_LINE_STRIP;
-import static android.opengl.GLES20.GL_POINTS;
-import static android.opengl.GLES20.GL_TRIANGLE_STRIP;
-import static android.opengl.GLES20.glClearColor;
-import static android.opengl.GLES20.glUniformMatrix4fv;
-
+import android.annotation.SuppressLint;
 import android.content.Context;
-import android.content.res.AssetManager;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
@@ -24,8 +18,9 @@ import com.hcmut.test.algorithm.StrokeGenerator;
 import com.hcmut.test.data.VertexArray;
 import com.hcmut.test.geometry.LineStrip;
 import com.hcmut.test.geometry.Point;
-import com.hcmut.test.geometry.Polygon;
+import com.hcmut.test.geometry.Ray;
 import com.hcmut.test.geometry.TriangleStrip;
+import com.hcmut.test.geometry.Vector;
 import com.hcmut.test.map.MapReader;
 import com.hcmut.test.object.ObjectBuilder;
 import com.hcmut.test.data.Way;
@@ -35,23 +30,24 @@ import com.hcmut.test.programs.TextShaderProgram;
 
 import org.xmlpull.v1.XmlPullParserException;
 
-import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
 public class TestRenderer implements GLSurfaceView.Renderer {
+    private static final float NEAR = 1f;
+    private static final float FAR = 10f;
     private final Context context;
     private ColorShaderProgram colorProgram;
     private TextShaderProgram textProgram;
     private ObjectBuilder builder;
-    MapReader mapReader;
+    private MapReader mapReader;
     private final float[] vertices = {
             -0.5f, 0.5f, 0f,
             -0.5f, 0f, 0f,
@@ -66,20 +62,26 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             -0.5f, 0.5f, 0f,
     };
     private final float[] vertices1 = {
-//            -2.843159f, 3.132369f, 0.0f,
-//            -2.340378f, 3.058398f, 0.0f,
-//            -2.2914348f, 3.0511677f, 0.0f,
-//            -2.10901f, 3.0278084f, 0.0f,
-//            -2.0689654f, 2.7814236f, 0.0f,
-//            -2.0823135f, 2.7491655f, 0.0f,
-//            -2.10901f, 2.7202446f, 0.0f,
-            -2.3759732f, 2.7513902f, 0.0f,
-            -2.8476083f, 2.8120131f, 0.0f,
-            -2.8921022f, 2.8515015f, 0.0f,
-            -2.9187984f, 3.1056728f, 0.0f,
-            -2.843159f, 3.132369f, 0.0f,
-            -2.8342602f, 3.2002223f, 0.0f,
-            -2.820912f, 3.2869854f, 0.0f,
+            -4.8587317f, -1.1496106f, 0.0f,
+            -4.849833f, -1.1368186f, 0.0f,
+            -4.8320355f, -1.057842f, 0.0f,
+            -4.836485f, -1.0094548f, 0.0f,
+            -4.8453836f, -0.96718574f, 0.0f,
+            -4.8587317f, -0.9321468f, 0.0f,
+            -4.876529f, -0.90155727f, 0.0f,
+            -4.8943267f, -0.8776418f, 0.0f,
+            -4.9254727f, -0.81368184f, 0.0f,
+            -4.929922f, -0.80478305f, 0.0f,
+            -4.9254727f, -0.7997775f, 0.0f,
+            -4.9210234f, -0.7975528f, 0.0f,
+            -4.876529f, -0.77586204f, 0.0f,
+            -4.863181f, -0.7636262f, 0.0f,
+            -4.8676305f, -0.74360394f, 0.0f,
+            -4.876529f, -0.7080089f, 0.0f,
+            -4.876529f, -0.6968854f, 0.0f,
+            -4.87208f, -0.69132364f, 0.0f,
+            -4.8587317f, -0.6885428f, 0.0f,
+            -4.6273637f, -0.6401557f, 0.0f,
     };
     private final float[] vertices2 = {
             -0.15175f, 0.12061f, 0,
@@ -91,16 +93,18 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     private float oldX = 0;
     private float oldY = 0;
     private float oldDistance = 0;
-
     private final float[] projectionMatrix = new float[16];
     private final float[] modelViewMatrix = new float[16];
     private final float[] transformMatrix = new float[16];
-    private float oldOriginX = 0;
+    private float[] oldTransformMatrix;
     private float originX = 0;
-    private float oldOriginY = 0;
     private float originY = 0;
-    private float oldScale = 1f;
     private float scale = 1f;
+    private int width;
+    private int height;
+    private Point oldPos;
+    private List<Point> oldPosList;
+
 
     public TestRenderer(Context context) {
         this.context = context;
@@ -108,7 +112,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
     @Override
     public void onSurfaceCreated(GL10 glUnused, EGLConfig config) {
-        glClearColor(0.95f, 0.94f, 0.91f, 1f);
+        GLES20.glClearColor(0.95f, 0.94f, 0.91f, 1f);
         colorProgram = new ColorShaderProgram(context, projectionMatrix, modelViewMatrix, transformMatrix);
         textProgram = new TextShaderProgram(context, projectionMatrix, modelViewMatrix, transformMatrix);
 
@@ -122,10 +126,15 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         float minLat = 10.7190f;
         float maxLat = 10.7455f;
 
+//        float minLon = 106.7301f;
+//        float maxLon = 106.7477f;
+//        float minLat = 10.7290f;
+//        float maxLat = 10.7405f;
+
         try {
             mapReader = new MapReader(context, R.raw.map);
-//            mapReader.setBounds(minLon, maxLon, minLat, maxLat);
-//            mapReader.read();
+            mapReader.setBounds(minLon, maxLon, minLat, maxLat);
+            mapReader.read();
         } catch (XmlPullParserException e) {
             e.printStackTrace();
         }
@@ -136,10 +145,6 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         originY = (minLat + maxLat) / 2;
         scale = 583.1902f;
 
-        oldOriginX = originX;
-        oldOriginY = originY;
-        oldScale = scale;
-
 //        originX = 0;
 //        originY = 0;
 //        scale = 1f;
@@ -147,7 +152,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         System.out.println("Origin: " + originX + ", " + originY + ", scale: " + scale);
 
 
-        builder = new ObjectBuilder(colorProgram);
+        builder = new ObjectBuilder(context, colorProgram, textProgram);
 
         for (String key : mapReader.ways.keySet()) {
             Way way = mapReader.ways.get(key);
@@ -160,66 +165,212 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 //        testFoo();
     }
 
-    public void handleTouchDrag(float eventX, float eventY) {
-        // Get screen size
-        DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
-        float width = displayMetrics.widthPixels;
-
-        float newOriginX = oldX - eventX / scale / width * 2;
-        float newOriginY = oldY + eventY / scale / width * 2;
-        float translateX = -(newOriginX - originX) * scale;
-        float translateY = -(newOriginY - originY) * scale;
-        originX = newOriginX;
-        originY = newOriginY;
-
-        Matrix.translateM(modelViewMatrix, 0, translateX, translateY, 0);
-        System.out.println("Origin: " + originX + ", " + originY + ", scale: " + scale);
+    private void divideByW(float[] vector) {
+        vector[0] /= vector[3];
+        vector[1] /= vector[3];
+        vector[2] /= vector[3];
     }
 
-    public void handleTouchPress(float eventX, float eventY) {
-        DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
-        float width = displayMetrics.widthPixels;
+    private Ray convertNormalized2DPointToRay(
+            float normalizedX, float normalizedY) {
+        // We'll convert these normalized device coordinates into world-space
+        // coordinates. We'll pick a point on the near and far planes, and draw a
+        // line between them. To do this transform, we need to first multiply by
+        // the inverse matrix, and then we need to undo the perspective divide.
+        final float[] nearPointNdc = {normalizedX, normalizedY, -1, 1};
+        final float[] farPointNdc = {normalizedX, normalizedY, 1, 1};
 
-        oldX = originX + eventX / scale / width * 2;
-        oldY = originY - eventY / scale / width * 2;
+        final float[] nearPointWorld = new float[4];
+        final float[] farPointWorld = new float[4];
 
-        // translate to old origin
-//        Matrix.translateM(modelViewMatrix, 0, (originX - oldOriginX) * scale, (originY - oldOriginY) * scale, 0);
+        float[] allMatrix = new float[16];
+        float[] invertedAllMatrix = new float[16];
+        Matrix.multiplyMM(allMatrix, 0, modelViewMatrix, 0, transformMatrix, 0);
+        Matrix.multiplyMM(allMatrix, 0, projectionMatrix, 0, allMatrix, 0);
+        Matrix.invertM(invertedAllMatrix, 0, allMatrix, 0);
+        Matrix.multiplyMV(
+                nearPointWorld, 0, invertedAllMatrix, 0, nearPointNdc, 0);
+        Matrix.multiplyMV(
+                farPointWorld, 0, invertedAllMatrix, 0, farPointNdc, 0);
+
+        // Why are we dividing by W? We multiplied our vector by an inverse
+        // matrix, so the W value that we end up is actually the *inverse* of
+        // what the projection matrix would create. By dividing all 3 components
+        // by W, we effectively undo the hardware perspective divide.
+        divideByW(nearPointWorld);
+        divideByW(farPointWorld);
+
+        // We don't care about the W value anymore, because our points are now
+        // in world coordinates.
+        Point nearPointRay = new Point(nearPointWorld[0], nearPointWorld[1], nearPointWorld[2]);
+
+        Point farPointRay = new Point(farPointWorld[0], farPointWorld[1], farPointWorld[2]);
+
+        return new Ray(nearPointRay, new Vector(nearPointRay, farPointRay));
     }
 
-    public void handleZoom(List<Float> eventXs, List<Float> eventYs) {
-        if (eventXs.size() != 2 || eventYs.size() != 2) {
-            return;
+    private void testPointCalc() {
+        Point scaledCenter = new Point(1, 1);
+        System.out.println("Org: " + scaledCenter);
+
+        float[] mat = new float[16];
+        Matrix.setIdentityM(mat, 0);
+        Matrix.translateM(mat, 0, 0.5f, 0.5f, 0);
+
+        Point calculatedCenter = testPointCalc(scaledCenter, mat);
+        System.out.println("Calc center: " + calculatedCenter);
+
+        Point calcBack = fromProjScreenToCoord(calculatedCenter, mat);
+        System.out.println("Calc back: " + calcBack);
+    }
+
+    private Point testPointCalc(Point p, float[] transformMatrix) {
+        float[] vec = new float[]{p.x, p.y, p.z, 1};
+
+        float[] result = new float[4];
+        Matrix.multiplyMV(result, 0, transformMatrix, 0, vec, 0);
+        Matrix.multiplyMV(result, 0, modelViewMatrix, 0, result, 0);
+        Matrix.multiplyMV(result, 0, projectionMatrix, 0, result, 0);
+
+        if (result[3] != 0) {
+            result[0] /= result[3];
+            result[1] /= result[3];
+            result[2] /= result[3];
         }
-        float newDistance = (float) Math.sqrt(Math.pow(eventXs.get(0) - eventXs.get(1), 2) + Math.pow(eventYs.get(0) - eventYs.get(1), 2));
-        float delta = oldDistance > 0 ? newDistance - oldDistance : 0;
-        oldDistance = newDistance;
-        float onePlusDeltaDivScale = 1 + delta / scale;
 
-//        System.out.println("Zooming delta " + delta);
-        System.out.println("Origin: " + originX + ", " + originY + ", scale: " + scale);
-        // translate to old origin
-        Matrix.translateM(modelViewMatrix, 0, (originX - oldOriginX) * scale, (originY - oldOriginY) * scale, 0);
-        // scale
-        Matrix.scaleM(modelViewMatrix, 0, onePlusDeltaDivScale, onePlusDeltaDivScale, 1);
-        // translate back to new origin
-        scale += delta;
-        Matrix.translateM(modelViewMatrix, 0, -(originX - oldOriginX) * scale, -(originY - oldOriginY) * scale, 0);
-//        Matrix.scaleM(modelViewMatrix, 0, deltaDivScale, deltaDivScale, 1);
+        return new Point(result[0], result[1], result[2]);
     }
 
-    public void handleResetZoom() {
-        oldDistance = 0;
+    private Point pixelScreenToProjScreen(float x, float y) {
+        // scale to screen then scale to [-1, 1]
+        return new Point(x / width * 2 - 1, 1 - y / height * 2);
+    }
+
+    private Point pixelScreenToCoord(float x, float y, float[] transformMatrix) {
+        Point pos = pixelScreenToProjScreen(x, y);
+        return fromProjScreenToCoord(pos, transformMatrix);
+    }
+
+    private Point fromProjScreenToCoord(Point p, float[] transformMatrix) {
+        float[] inverseProjection = new float[16];
+        Matrix.invertM(inverseProjection, 0, projectionMatrix, 0);
+        float[] inverseModelView = new float[16];
+        Matrix.invertM(inverseModelView, 0, modelViewMatrix, 0);
+        float[] inverseTransform = new float[16];
+        Matrix.invertM(inverseTransform, 0, transformMatrix, 0);
+
+        float[] vector = new float[]{p.x, p.y, p.z, 1};
+        float[] resultVec = new float[4];
+        Matrix.multiplyMV(resultVec, 0, inverseProjection, 0, vector, 0);
+        Matrix.multiplyMV(resultVec, 0, inverseModelView, 0, resultVec, 0);
+        Matrix.multiplyMV(resultVec, 0, inverseTransform, 0, resultVec, 0);
+
+        if (resultVec[3] != 0) {
+            resultVec[0] /= resultVec[3];
+            resultVec[1] /= resultVec[3];
+            resultVec[2] /= resultVec[3];
+        }
+
+        return new Point(resultVec[0], resultVec[1], resultVec[2]);
+    }
+
+    public void actionDown(float x, float y) {
+        oldTransformMatrix = Arrays.copyOf(transformMatrix, transformMatrix.length);
+        oldPos = pixelScreenToCoord(x, y, oldTransformMatrix);
+        System.out.println("actionDown: " + oldPos);
+    }
+
+    public void actionMove(float x, float y) {
+        float[] copyOldTransformMatrix = Arrays.copyOf(oldTransformMatrix, oldTransformMatrix.length);
+        Point newPos = pixelScreenToCoord(x, y, copyOldTransformMatrix);
+        System.out.println("actionMove: " + newPos);
+        float translateX = newPos.x - oldPos.x;
+        float translateY = newPos.y - oldPos.y;
+        Matrix.translateM(copyOldTransformMatrix, 0, translateX, translateY, 0);
+
+        // copy to transformMatrix
+        System.arraycopy(copyOldTransformMatrix, 0, transformMatrix, 0, transformMatrix.length);
+    }
+
+    public void actionUp(float x, float y) {
+    }
+
+    @SuppressLint("NewApi")
+    public void actionPointerDown(List<Float> x, List<Float> y) {
+        if (x.size() != 2) return;
+        oldTransformMatrix = Arrays.copyOf(transformMatrix, transformMatrix.length);
+        oldPosList = new ArrayList<>() {{
+            for (int i = 0; i < x.size(); i++) {
+                add(pixelScreenToCoord(x.get(i), y.get(i), oldTransformMatrix));
+            }
+        }};
+        System.out.println("actionPointerDown: " + oldPosList);
+    }
+
+    @SuppressLint("NewApi")
+    public void actionPointerMove(List<Float> x, List<Float> y) {
+        if (x.size() != 2) return;
+        float[] copyOldTransformMatrix = Arrays.copyOf(oldTransformMatrix, oldTransformMatrix.length);
+        List<Point> newPosList = new ArrayList<>() {{
+            for (int i = 0; i < x.size(); i++) {
+                add(pixelScreenToCoord(x.get(i), y.get(i), oldTransformMatrix));
+            }
+        }};
+
+        Point oldP1 = oldPosList.get(0);
+        Point oldP2 = oldPosList.get(1);
+        Point p1 = newPosList.get(0);
+        Point p2 = newPosList.get(1);
+
+        // Translate
+        Point oldCenter = oldP1.midPoint(oldP2);
+        Point center = p1.midPoint(p2);
+        float translateX = center.x - oldCenter.x;
+        float translateY = center.y - oldCenter.y;
+        Matrix.translateM(copyOldTransformMatrix, 0, translateX, translateY, 0);
+
+        // Scale
+        float oldDistance = oldP1.distance(oldP2);
+        float newDistance = p1.distance(p2);
+        float scale = newDistance / oldDistance;
+
+        Matrix.translateM(copyOldTransformMatrix, 0, center.x, center.y, 0);
+        Matrix.scaleM(copyOldTransformMatrix, 0, scale, scale, 1);
+        Matrix.translateM(copyOldTransformMatrix, 0, -center.x, -center.y, 0);
+
+        // Rotate
+        Vector vecX = new Vector(1, 0);
+        float oldAngle = new Vector(oldP1, oldP2).signedAngle(vecX);
+        float newAngle = new Vector(p1, p2).signedAngle(vecX);
+        float angle = (float) Math.toDegrees(oldAngle - newAngle);
+
+        System.out.println("oldAngle: " + Math.toDegrees(oldAngle) + ", newAngle: " + Math.toDegrees(newAngle) + ", angle: " + angle);
+
+        Matrix.translateM(copyOldTransformMatrix, 0, center.x, center.y, 0);
+        Matrix.rotateM(copyOldTransformMatrix, 0, angle, 0, 0, 1);
+        Matrix.translateM(copyOldTransformMatrix, 0, -center.x, -center.y, 0);
+
+        // copy to transformMatrix
+        System.arraycopy(copyOldTransformMatrix, 0, transformMatrix, 0, transformMatrix.length);
+
+        this.scale += scale;
+    }
+
+    public void actionPointerUp(List<Float> x, List<Float> y) {
     }
 
     @Override
     public void onSurfaceChanged(GL10 glUnused, int width, int height) {
+        this.width = width;
+        this.height = height;
         // Set the OpenGL viewport to fill the entire surface.
         GLES20.glViewport(0, 0, width, height);
         final float aspectRatio = width > height ? (float) width / (float) height : (float) height / (float) width;
-        Matrix.frustumM(projectionMatrix, 0, -width / (float) height, width / (float) height, -1f, 1f, 1f, 10f);
+        Matrix.frustumM(projectionMatrix, 0, -width / (float) height, width / (float) height, -1f, 1f, NEAR, FAR);
         Matrix.setLookAtM(modelViewMatrix, 0, 0f, 0f, 2f, 0f, 0, 0f, 0f, 1f, 0f);
         Matrix.setIdentityM(transformMatrix, 0);
+
+        testPointCalc();
 
 //        Matrix.orthoM(projectionMatrix, 0, -1f, 1f, -aspectRatio, aspectRatio, -1f, 1f);
 //        Matrix.setIdentityM(modelViewMatrix, 0);
@@ -268,7 +419,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     }
 
     public void testClosedShape() {
-        ObjectBuilder builder1 = new ObjectBuilder(colorProgram);
+        ObjectBuilder builder1 = new ObjectBuilder(context, colorProgram, textProgram);
         Way way = new Way(vertices);
 
         builder1.addWay("asd", way, 0, 0, 1);
@@ -292,7 +443,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             chosenVertices[i + 2] -= first[2];
         }
 
-        StrokeGenerator.Stroke rvStroke = StrokeGenerator.generateStrokeT(new LineStrip(chosenVertices), 10, 0.1f);
+        StrokeGenerator.Stroke rvStroke = StrokeGenerator.generateStrokeT(new LineStrip(chosenVertices), 10, 0.02f);
         TriangleStrip rv = rvStroke.toTriangleStrip();
         TriangleStrip rvLine = new TriangleStrip(rvStroke.toOrderedPoints());
         TriangleStrip rvBorder = StrokeGenerator.generateBorderFromStroke(rvStroke, 10, 0.002f);
@@ -335,23 +486,18 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         }
 
         List<Point> points = Point.toPoints(chosenVertices);
-        TextDrawer.test(textProgram, context, points);
-
-        colorProgram.useProgram();
-        VertexArray singleVertexArray = new VertexArray(colorProgram, points, 0, 0, 1, 1);
-        singleVertexArray.setDataFromVertexData();
-        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, points.size());
+        TextDrawer.test(textProgram, colorProgram, context, points);
     }
 
     @Override
     public void onDrawFrame(GL10 glUnused) {
         GLES20.glEnable(GLES20.GL_DEPTH_TEST);
-        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
         GLES20.glEnable(GLES20.GL_BLEND);
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_STENCIL_BUFFER_BIT);
 
-//        builder.draw();
+        builder.draw();
 //        testStroke();
-        testText();
+//        testText();
     }
 }

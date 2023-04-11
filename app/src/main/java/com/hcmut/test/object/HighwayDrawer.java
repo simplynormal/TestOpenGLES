@@ -45,6 +45,8 @@ public class HighwayDrawer extends Drawable {
     }
 
     public void addWay(String key, Way way) {
+        if (!way.tags.containsKey("highway")) return;
+
         LineStrip linePoints = new LineStrip(way.toPoints(originX, originY, scale));
         Stroke stroke = StrokeGenerator.generateStrokeT(linePoints, 8, 0.02f);
         TriangleStrip border = StrokeGenerator.generateBorderFromStroke(stroke, 8, 0.002f);
@@ -104,8 +106,6 @@ public class HighwayDrawer extends Drawable {
         if (wayFill.isEmpty() || wayBorder.isEmpty()) {
             return;
         }
-
-        GLES20.glClear(GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_STENCIL_BUFFER_BIT);
 
         shaderProgram.useProgram();
         drawHighway();

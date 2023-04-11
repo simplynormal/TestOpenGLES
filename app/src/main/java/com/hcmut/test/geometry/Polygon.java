@@ -61,6 +61,8 @@ public class Polygon extends PointList {
             triangulatePoints.add(new PolygonPoint(p.x, p.y));
         }
 
+        float curZ = points.get(0).z;
+
         org.poly2tri.geometry.polygon.Polygon polygon = new org.poly2tri.geometry.polygon.Polygon(triangulatePoints);
         for (Polygon hole : holes) {
             ArrayList<PolygonPoint> holePoints = new ArrayList<>();
@@ -74,9 +76,9 @@ public class Polygon extends PointList {
         List<Triangle> triangles = new ArrayList<>();
         for (DelaunayTriangle triangle : polygon.getTriangles()) {
             triangles.add(new Triangle(
-                    (float) triangle.points[0].getX(), (float) triangle.points[0].getY(), 0,
-                    (float) triangle.points[1].getX(), (float) triangle.points[1].getY(), 0,
-                    (float) triangle.points[2].getX(), (float) triangle.points[2].getY(), 0
+                    (float) triangle.points[0].getX(), (float) triangle.points[0].getY(), curZ,
+                    (float) triangle.points[1].getX(), (float) triangle.points[1].getY(), curZ,
+                    (float) triangle.points[2].getX(), (float) triangle.points[2].getY(), curZ
             ));
         }
         return triangles;

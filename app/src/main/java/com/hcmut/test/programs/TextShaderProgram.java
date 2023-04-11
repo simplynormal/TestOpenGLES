@@ -114,7 +114,7 @@ public class TextShaderProgram extends ShaderProgram {
 
         // Recycle the bitmap, since its data has been loaded into
         // OpenGL.
-//        bitmap.recycle();
+        bitmap.recycle();
 
         // Unbind from the texture.
         glBindTexture(GL_TEXTURE_2D, 0);
@@ -122,10 +122,13 @@ public class TextShaderProgram extends ShaderProgram {
         return textureObjectIds[0];
     }
 
+    public void deleteTexture(int textureId) {
+        glDeleteTextures(1, new int[]{textureId}, 0);
+    }
+
     public void setCurrentTexture(int textureId) {
-        int uAtlas = getUniformLocation(U_TEXTURE_UNIT);
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+        int uTextureUnit = getUniformLocation(U_TEXTURE_UNIT);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
-        GLES20.glUniform1i(uAtlas, 0);
+        GLES20.glUniform1i(uTextureUnit, 0);
     }
 }

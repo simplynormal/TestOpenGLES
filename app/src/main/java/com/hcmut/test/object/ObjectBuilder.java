@@ -8,37 +8,44 @@
  ***/
 package com.hcmut.test.object;
 
+import android.content.Context;
+
 import com.hcmut.test.data.VertexArray;
 import com.hcmut.test.data.Way;
 import com.hcmut.test.programs.ColorShaderProgram;
+import com.hcmut.test.programs.TextShaderProgram;
 
 public class ObjectBuilder {
     ColorShaderProgram colorProgram;
+    TextShaderProgram textProgram;
     HighwayDrawer highwayDrawer;
     AreaDrawer areaDrawer;
+    TextDrawer textDrawer;
 
 
-    public ObjectBuilder(ColorShaderProgram colorProgram) {
+    public ObjectBuilder(Context context, ColorShaderProgram colorProgram, TextShaderProgram textProgram) {
         this.colorProgram = colorProgram;
+        this.textProgram = textProgram;
         areaDrawer = new AreaDrawer(colorProgram);
         highwayDrawer = new HighwayDrawer(colorProgram);
+        textDrawer = new TextDrawer(context, textProgram);
     }
 
     public void addWay(String key, Way way, float originX, float originY, float scale) {
-        if (way.isClosed() && !way.tags.containsKey("highway")) {
-            areaDrawer.addWay(key, way, originX, originY, scale);
-        } else {
-            highwayDrawer.addWay(key, way, originX, originY, scale);
-        }
+        areaDrawer.addWay(key, way, originX, originY, scale);
+        highwayDrawer.addWay(key, way, originX, originY, scale);
+        textDrawer.addWay(key, way, originX, originY, scale, 0, 0, 0, 1);
     }
 
     public void finalizeDrawer() {
         highwayDrawer.finalizeDrawer();
         areaDrawer.finalizeDrawer();
+        textDrawer.finalizeDrawer();
     }
 
     public void draw() {
         areaDrawer.draw();
         highwayDrawer.draw();
+        textDrawer.draw();
     }
 }

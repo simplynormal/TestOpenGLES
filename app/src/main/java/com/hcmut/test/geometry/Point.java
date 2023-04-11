@@ -37,6 +37,14 @@ public class Point {
         this.z = p.z;
     }
 
+    public float distance(Point p) {
+        return (float) Math.sqrt(Math.pow(p.x - x, 2) + Math.pow(p.y - y, 2) + Math.pow(p.z - z, 2));
+    }
+
+    public Point midPoint(Point p) {
+        return new Point((x + p.x) / 2, (y + p.y) / 2, (z + p.z) / 2);
+    }
+
     public Point add(Vector v) {
         return new Point(this.x + v.x, this.y + v.y, this.z + v.z);
     }

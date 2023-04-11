@@ -102,6 +102,15 @@ public class Vector {
         return (float) Math.acos(this.dot(v) / (this.length() * v.length()));
     }
 
+    public float signedAngle(Vector v) {
+        float angle = (float) Math.acos(this.dot(v) / (this.length() * v.length()));
+        Vector cross = this.cross(v);
+        if (cross.z < 0) {
+            angle = -angle; // Angle is negative if cross product points down (in the -z direction)
+        }
+        return angle;
+    }
+
     public boolean isInBetween(Vector v1, Vector v2) {
         return v1.cross(this).z * v1.cross(v2).z >= 0 && v2.cross(this).z * v2.cross(v1).z >= 0;
     }
