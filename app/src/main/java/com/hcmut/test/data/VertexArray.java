@@ -12,12 +12,15 @@ import static android.opengl.GLES20.GL_FLOAT;
 import static android.opengl.GLES20.glEnableVertexAttribArray;
 import static android.opengl.GLES20.glVertexAttribPointer;
 
+import android.opengl.GLES20;
+
 import com.hcmut.test.geometry.Point;
 import com.hcmut.test.geometry.PointList;
 import com.hcmut.test.geometry.Polygon;
 import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.programs.ShaderProgram;
 
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -26,24 +29,39 @@ import java.util.List;
 import java.util.Random;
 
 public class VertexArray {
-    private static final int BYTES_PER_FLOAT = 4;
-    private static final int seed = 69;
-    private static Random random = new Random(seed);
-    private final FloatBuffer floatBuffer;
-    private final ShaderProgram shaderProgram;
-    private final int vertexCount;
+    protected static final int BYTES_PER_FLOAT = 4;
+    protected static final int seed = 69;
+    protected static Random random = new Random(seed);
+    protected final ShaderProgram shaderProgram;
+    protected int vertexCount;
+    protected int id = -1;
+
     public static void resetRandom() {
         random = new Random(seed);
     }
 
-    public VertexArray(ShaderProgram shaderProgram, float[] vertexData) {
-        floatBuffer = ByteBuffer
+    private void genBuffer(float[] vertexData) {
+        if (id != -1) {
+            GLES20.glDeleteBuffers(1, new int[]{id}, 0);
+        }
+        FloatBuffer floatBuffer = ByteBuffer
                 .allocateDirect(vertexData.length * BYTES_PER_FLOAT)
                 .order(ByteOrder.nativeOrder())
                 .asFloatBuffer()
                 .put(vertexData);
+        floatBuffer.position(0);
+        int[] vbo = new int[1];
+        GLES20.glGenBuffers(1, vbo, 0);
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo[0]);
+        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, floatBuffer.capacity() * BYTES_PER_FLOAT, floatBuffer, GLES20.GL_STATIC_DRAW);
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
+        id = vbo[0];
+    }
+
+    public VertexArray(ShaderProgram shaderProgram, float[] vertexData) {
         this.shaderProgram = shaderProgram;
         this.vertexCount = vertexData.length / shaderProgram.getTotalVertexAttribCount();
+        genBuffer(vertexData);
     }
 
     public VertexArray(ShaderProgram shaderProgram, Point p, float r, float g, float b, float a) {
@@ -66,15 +84,12 @@ public class VertexArray {
         this(shaderProgram, p.points);
     }
 
-
     public void setVertexAttribPointer(int dataOffset, int attributeLocation,
                                        int componentCount, int strideInElements) {
-        floatBuffer.position(dataOffset);
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, id);
         glVertexAttribPointer(attributeLocation, componentCount, GL_FLOAT,
-                false, strideInElements * BYTES_PER_FLOAT, floatBuffer);
+                false, strideInElements * BYTES_PER_FLOAT, dataOffset * BYTES_PER_FLOAT);
         glEnableVertexAttribArray(attributeLocation);
-
-        floatBuffer.position(0);
     }
 
     public void setDataFromVertexData() {
@@ -114,5 +129,11 @@ public class VertexArray {
             System.arraycopy(vertexData, 0, result, i * vertexData.length, vertexData.length);
         }
         return result;
+    }
+
+    protected void finalize() {
+        if (id != -1) {
+            GLES20.glDeleteBuffers(1, new int[]{id}, 0);
+        }
     }
 }

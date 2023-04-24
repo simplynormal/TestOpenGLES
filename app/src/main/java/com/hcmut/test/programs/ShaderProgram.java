@@ -8,6 +8,8 @@
  ***/
 package com.hcmut.test.programs;
 
+import static android.opengl.GLES20.glGetAttribLocation;
+import static android.opengl.GLES20.glGetUniformLocation;
 import static android.opengl.GLES20.glUseProgram;
 
 import android.content.Context;
@@ -32,7 +34,6 @@ public abstract class ShaderProgram {
     }
 
     protected final int program;
-    private Context context;
 
     protected ShaderProgram(Context context, int vertexShaderResourceId,
                             int fragmentShaderResourceId) {
@@ -42,12 +43,16 @@ public abstract class ShaderProgram {
                         .readTextFileFromResource(context, vertexShaderResourceId),
                 TextResourceReader
                         .readTextFileFromResource(context, fragmentShaderResourceId));
-        this.context = context;
     }
 
-    public abstract int getUniformLocation(String uniformName);
 
-    public abstract int getAttributeLocation(String attributeName);
+    public int getUniformLocation(String uniformName) {
+        return glGetUniformLocation(program, uniformName);
+    }
+
+    public int getAttributeLocation(String attributeName) {
+        return glGetAttribLocation(program, attributeName);
+    }
 
     protected static List<VertexAttrib> getVertexAttribs(String[] vertexAttribNames, int[] vertexAttribs) {
         List<VertexAttrib> result = new ArrayList<>();

@@ -19,6 +19,12 @@ public class Triangle {
         this.p3 = new Point(x3, y3, z3);
     }
 
+    public float getArea() {
+        Vector v1 = new Vector(p1, p2);
+        Vector v2 = new Vector(p1, p3);
+        return v1.cross(v2).length() / 2;
+    }
+
     public float getAngleA() {
         Vector v1 = new Vector(p1, p2);
         Vector v2 = new Vector(p1, p3);

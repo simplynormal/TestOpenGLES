@@ -4,10 +4,8 @@ import static android.opengl.GLES20.GL_TRIANGLES;
 import static android.opengl.GLES20.glDrawArrays;
 import static android.opengl.GLES20.glUniformMatrix4fv;
 
-import android.opengl.GLES20;
-
 import com.hcmut.test.data.VertexArray;
-import com.hcmut.test.data.Way;
+import com.hcmut.test.osm.Way;
 import com.hcmut.test.geometry.Polygon;
 import com.hcmut.test.geometry.Triangle;
 import com.hcmut.test.programs.ColorShaderProgram;
@@ -60,7 +58,7 @@ public class AreaDrawer extends Drawable {
                         add(triangle.p3);
                     }
                 }
-            });
+            }, 0, 1, 0, 1);
 
             float[] newWayVert = new float[wayVert.length + curWayVert.length];
             System.arraycopy(wayVert, 0, newWayVert, 0, wayVert.length);

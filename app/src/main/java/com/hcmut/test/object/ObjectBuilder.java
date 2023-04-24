@@ -10,8 +10,7 @@ package com.hcmut.test.object;
 
 import android.content.Context;
 
-import com.hcmut.test.data.VertexArray;
-import com.hcmut.test.data.Way;
+import com.hcmut.test.osm.Way;
 import com.hcmut.test.programs.ColorShaderProgram;
 import com.hcmut.test.programs.TextShaderProgram;
 

@@ -5,34 +5,29 @@ import android.content.Context;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
-import android.util.DisplayMetrics;
 
-import com._2gis.cartoshka.CartoParser;
-import com._2gis.cartoshka.tree.Block;
-import com._2gis.cartoshka.tree.expression.Literal;
-import com._2gis.cartoshka.visitor.ConstantFoldVisitor;
-import com._2gis.cartoshka.visitor.EvaluateVisitor;
-import com._2gis.cartoshka.visitor.PrintVisitor;
-import com._2gis.cartoshka.visitor.VolatilityCheckVisitor;
+import com.hcmut.test.algorithm.CoordinateTransform;
 import com.hcmut.test.algorithm.StrokeGenerator;
 import com.hcmut.test.data.VertexArray;
 import com.hcmut.test.geometry.LineStrip;
 import com.hcmut.test.geometry.Point;
+import com.hcmut.test.geometry.PointList;
 import com.hcmut.test.geometry.Ray;
 import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.geometry.Vector;
-import com.hcmut.test.map.MapReader;
+import com.hcmut.test.mapnik.Layer;
+import com.hcmut.test.mapnik.symbolizer.LineSymbolizer;
+import com.hcmut.test.mapnik.StyleParser;
+import com.hcmut.test.reader.MapReader;
 import com.hcmut.test.object.ObjectBuilder;
-import com.hcmut.test.data.Way;
+import com.hcmut.test.osm.Way;
 import com.hcmut.test.object.TextDrawer;
 import com.hcmut.test.programs.ColorShaderProgram;
 import com.hcmut.test.programs.TextShaderProgram;
+import com.hcmut.test.utils.Config;
 
 import org.xmlpull.v1.XmlPullParserException;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -41,53 +36,29 @@ import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
 public class TestRenderer implements GLSurfaceView.Renderer {
-    private static final float NEAR = 1f;
-    private static final float FAR = 10f;
     private final Context context;
     private ColorShaderProgram colorProgram;
     private TextShaderProgram textProgram;
     private ObjectBuilder builder;
     private MapReader mapReader;
+    private StyleParser styleParser;
+    private Config config;
     private final float[] vertices = {
-            -0.5f, 0.5f, 0f,
-            -0.5f, 0f, 0f,
-            -0.5f, -0.5f, 0f,
-            0.5f, -0.5f, 0f,
-            0.5f, -0f, 0f,
-            0f, 0f, 0f,
-            0f, 0.05f, 0f,
-            0.3f, 0.1f, 0f,
-            0f, 0.4f, 0f,
-            0f, 0.5f, 0f,
-            -0.5f, 0.5f, 0f,
+            -1.0f, -1.0f, 0.0f,
+            1.0f, -1.0f, 0.0f,
+            1.0f, 1.0f, 0.0f,
+            -1.0f, 1.0f, 0.0f,
+            -1.0f, -1.0f, 0.0f,
     };
     private final float[] vertices1 = {
-            -4.8587317f, -1.1496106f, 0.0f,
-            -4.849833f, -1.1368186f, 0.0f,
-            -4.8320355f, -1.057842f, 0.0f,
-            -4.836485f, -1.0094548f, 0.0f,
-            -4.8453836f, -0.96718574f, 0.0f,
-            -4.8587317f, -0.9321468f, 0.0f,
-            -4.876529f, -0.90155727f, 0.0f,
-            -4.8943267f, -0.8776418f, 0.0f,
-            -4.9254727f, -0.81368184f, 0.0f,
-            -4.929922f, -0.80478305f, 0.0f,
-            -4.9254727f, -0.7997775f, 0.0f,
-            -4.9210234f, -0.7975528f, 0.0f,
-            -4.876529f, -0.77586204f, 0.0f,
-            -4.863181f, -0.7636262f, 0.0f,
-            -4.8676305f, -0.74360394f, 0.0f,
-            -4.876529f, -0.7080089f, 0.0f,
-            -4.876529f, -0.6968854f, 0.0f,
-            -4.87208f, -0.69132364f, 0.0f,
-            -4.8587317f, -0.6885428f, 0.0f,
-            -4.6273637f, -0.6401557f, 0.0f,
+            0f, 0f, 0f,
+            0.15f, 0.15f, 0f,
+            0f, 0.5f, 0f,
     };
     private final float[] vertices2 = {
-            -0.15175f, 0.12061f, 0,
-            0.14604f, 0.22661f, 0,
-            -0.07352f, 0.21651f, 0,
-            0.44637f, 0.22661f, 0
+            0f, 0f, 0f,
+            0f, 0.5f, 0f,
+            -0.5f, 0.5f, 0f,
     };
 
     private float oldX = 0;
@@ -100,8 +71,6 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     private float originX = 0;
     private float originY = 0;
     private float scale = 1f;
-    private int width;
-    private int height;
     private Point oldPos;
     private List<Point> oldPosList;
 
@@ -110,59 +79,68 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         this.context = context;
     }
 
-    @Override
-    public void onSurfaceCreated(GL10 glUnused, EGLConfig config) {
-        GLES20.glClearColor(0.95f, 0.94f, 0.91f, 1f);
+    public void initOpenGL() {
         colorProgram = new ColorShaderProgram(context, projectionMatrix, modelViewMatrix, transformMatrix);
         textProgram = new TextShaderProgram(context, projectionMatrix, modelViewMatrix, transformMatrix);
+        config = new Config(context, colorProgram, textProgram);
+        builder = new ObjectBuilder(context, colorProgram, textProgram);
+
+        int width = context.getResources().getDisplayMetrics().widthPixels;
+        int height = context.getResources().getDisplayMetrics().heightPixels;
+        config.setWidthHeight(width, height);
 
 //        float minLon = 106.73603f;
 //        float maxLon = 106.74072f;
 //        float minLat = 10.73122f;
 //        float maxLat = 10.73465f;
 
+//        float minLon = 106.71410f;
+//        float maxLon = 106.72421f;
+//        float minLat = 10.72307f;
+//        float maxLat = 10.72860f;
+
         float minLon = 106.7091f;
         float maxLon = 106.7477f;
         float minLat = 10.7190f;
         float maxLat = 10.7455f;
 
-//        float minLon = 106.7301f;
-//        float maxLon = 106.7477f;
-//        float minLat = 10.7290f;
-//        float maxLat = 10.7405f;
+        originX = (minLon + maxLon) / 2;
+        originY = (minLat + maxLat) / 2;
+        scale = 583.1902f;
+        config.setOriginFromWGS84(originX, originY);
+        config.setScaleDenominator(1000);
 
         try {
             mapReader = new MapReader(context, R.raw.map);
             mapReader.setBounds(minLon, maxLon, minLat, maxLat);
             mapReader.read();
+            styleParser = new StyleParser(context, R.raw.mapnik, config);
+            styleParser.read();
         } catch (XmlPullParserException e) {
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
 
-//        mapReader.printObj();
+        styleParser.validateWays(mapReader.ways);
+    }
 
-        originX = (minLon + maxLon) / 2;
-        originY = (minLat + maxLat) / 2;
-        scale = 583.1902f;
+    @Override
+    public void onSurfaceCreated(GL10 glUnused, EGLConfig config) {
+        GLES20.glClearColor(0.95f, 0.94f, 0.91f, 1f);
+        GLES20.glEnable(GLES20.GL_BLEND);
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+        initOpenGL();
 
-//        originX = 0;
-//        originY = 0;
-//        scale = 1f;
+//        for (String key : mapReader.ways.keySet()) {
+//            Way way = mapReader.ways.get(key);
+//            if (way != null) {
+//                builder.addWay(key, way, originX, originY, scale);
+//            }
+//        }
+//        builder.finalizeDrawer();
 
-        System.out.println("Origin: " + originX + ", " + originY + ", scale: " + scale);
-
-
-        builder = new ObjectBuilder(context, colorProgram, textProgram);
-
-        for (String key : mapReader.ways.keySet()) {
-            Way way = mapReader.ways.get(key);
-            if (way != null) {
-                builder.addWay(key, way, originX, originY, scale);
-            }
-        }
-        builder.finalizeDrawer();
-
-//        testFoo();
+//        Rule.test();
+//        StyleParser.test(context, R.raw.mapnik);
+        Test.test();
     }
 
     private void divideByW(float[] vector) {
@@ -243,7 +221,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
     private Point pixelScreenToProjScreen(float x, float y) {
         // scale to screen then scale to [-1, 1]
-        return new Point(x / width * 2 - 1, 1 - y / height * 2);
+        return new Point(x / config.getWidth() * 2 - 1, 1 - y / config.getHeight() * 2);
     }
 
     private Point pixelScreenToCoord(float x, float y, float[] transformMatrix) {
@@ -361,61 +339,20 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
     @Override
     public void onSurfaceChanged(GL10 glUnused, int width, int height) {
-        this.width = width;
-        this.height = height;
         // Set the OpenGL viewport to fill the entire surface.
         GLES20.glViewport(0, 0, width, height);
-        final float aspectRatio = width > height ? (float) width / (float) height : (float) height / (float) width;
-        Matrix.frustumM(projectionMatrix, 0, -width / (float) height, width / (float) height, -1f, 1f, NEAR, FAR);
+        Matrix.frustumM(projectionMatrix, 0, -width / (float) height, width / (float) height, -1f, 1f, 1f, 10f);
         Matrix.setLookAtM(modelViewMatrix, 0, 0f, 0f, 2f, 0f, 0, 0f, 0f, 1f, 0f);
         Matrix.setIdentityM(transformMatrix, 0);
+        float scaledToLength = CoordinateTransform.getScalePixel(config.getScaleDenominator()) * config.getLengthPerPixel();
+        float translateX = -config.getOriginX() * scaledToLength;
+        float translateY = -config.getOriginY() * scaledToLength;
+//        Matrix.translateM(transformMatrix, 0, 1, 1, 0);
 
-        testPointCalc();
+//        testPointCalc();
 
 //        Matrix.orthoM(projectionMatrix, 0, -1f, 1f, -aspectRatio, aspectRatio, -1f, 1f);
 //        Matrix.setIdentityM(modelViewMatrix, 0);
-    }
-
-    public void testFoo() {
-        // Resource to file
-        List<String> files;
-        InputStream[] inputStreams;
-        try {
-            files = new ArrayList<>(List.of(context.getAssets().list("style/carto")));
-            inputStreams = new InputStream[files.size()];
-            for (int i = 0; i < files.size(); i++) {
-                inputStreams[i] = context.getAssets().open("style/carto/" + files.get(i));
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        CartoParser parser = new CartoParser();
-        Block[] styles = new Block[inputStreams.length];
-        for (int i = 0; i < inputStreams.length; i++) {
-            InputStream inputStream = inputStreams[i];
-            String file = files.get(i);
-            try (InputStreamReader reader = new InputStreamReader(inputStream)) {
-                // parsing the file
-                styles[i] = parser.parse(file, reader);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-        // constant folding
-        for (Block style : styles) {
-            style.accept(new ConstantFoldVisitor(), null);
-            Literal p = style.accept(new EvaluateVisitor(), null);
-            Boolean b = style.accept(new VolatilityCheckVisitor(), null);
-
-//            System.out.println("Literal: " + p);
-//            System.out.println("Volatility: " + b);
-
-            // pretty print
-            String pretty = style.accept(new PrintVisitor(), null);
-            System.out.println(pretty);
-        }
     }
 
     public void testClosedShape() {
@@ -443,7 +380,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             chosenVertices[i + 2] -= first[2];
         }
 
-        StrokeGenerator.Stroke rvStroke = StrokeGenerator.generateStrokeT(new LineStrip(chosenVertices), 10, 0.02f);
+        StrokeGenerator.Stroke rvStroke = StrokeGenerator.generateStroke(new LineStrip(chosenVertices), 8, 0.0012962963f);
         TriangleStrip rv = rvStroke.toTriangleStrip();
         TriangleStrip rvLine = new TriangleStrip(rvStroke.toOrderedPoints());
         TriangleStrip rvBorder = StrokeGenerator.generateBorderFromStroke(rvStroke, 10, 0.002f);
@@ -489,15 +426,127 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         TextDrawer.test(textProgram, colorProgram, context, points);
     }
 
+    void drawLineSymbolizer(float[] chosenVertices, LineSymbolizer lineSymbolizer, boolean drawPoints) {
+        List<Point> points = Point.toPoints(chosenVertices);
+        PointList pointList = new PointList(points);
+
+        float[] drawables = lineSymbolizer.toDrawable(null, pointList);
+        VertexArray vertexArray = new VertexArray(colorProgram, drawables);
+        config.colorShaderProgram.useProgram();
+        vertexArray.setDataFromVertexData();
+        int pointCount = vertexArray.getVertexCount();
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, pointCount);
+
+        if (!drawPoints) {
+            return;
+        }
+
+        for (int i = 0; i < drawables.length; i += 7) {
+            drawables[i + 3] = 0;
+            drawables[i + 4] = 0;
+            drawables[i + 5] = 0;
+        }
+        vertexArray = new VertexArray(colorProgram, drawables);
+        config.colorShaderProgram.useProgram();
+        vertexArray.setDataFromVertexData();
+        pointCount = vertexArray.getVertexCount();
+        GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, pointCount);
+    }
+
+    void testLineSymbolizer() {
+        GLES20.glDisable(GLES20.GL_DEPTH_TEST);
+        float[] chosenVertices = vertices1;
+
+        float[] first = new float[]{
+                chosenVertices[0], chosenVertices[1], chosenVertices[2],
+        };
+
+        for (int i = 0; i < chosenVertices.length; i += 3) {
+            chosenVertices[i] -= first[0];
+            chosenVertices[i + 1] -= first[1];
+            chosenVertices[i + 2] -= first[2];
+        }
+
+        LineSymbolizer lineSymbolizer = new LineSymbolizer(
+                config,
+                "10",
+                "#ff0000",
+                null,
+                "butt",
+                null,
+                null,
+                null
+        );
+
+        // offset chosenVertices by 0
+        float[] chosenVertices2 = new float[chosenVertices.length];
+        System.arraycopy(chosenVertices, 0, chosenVertices2, 0, chosenVertices.length);
+        for (int i = 0; i < chosenVertices2.length; i += 3) {
+            chosenVertices2[i] += 0;
+        }
+        LineSymbolizer lineSymbolizer2 = new LineSymbolizer(
+                config,
+                "10",
+                "#00ff00",
+                null,
+                "round",
+                null,
+                null,
+                "-15"
+        );
+
+        // offset chosenVertices by 0.2
+        float[] chosenVertices3 = new float[chosenVertices.length];
+        System.arraycopy(chosenVertices, 0, chosenVertices3, 0, chosenVertices.length);
+        for (int i = 0; i < chosenVertices3.length; i += 3) {
+            chosenVertices3[i] += 0.2;
+        }
+        LineSymbolizer lineSymbolizer3 = new LineSymbolizer(
+                config,
+                "10",
+                "#0000ff",
+                null,
+                "square",
+                null,
+                null,
+                null
+        );
+
+        // offset chosenVertices by -0.5
+        float[] chosenVertices4 = new float[vertices2.length];
+        System.arraycopy(vertices2, 0, chosenVertices4, 0, vertices2.length);
+        for (int i = 0; i < chosenVertices4.length; i += 3) {
+            chosenVertices4[i] -= 0.5;
+        }
+        LineSymbolizer lineSymbolizer4 = new LineSymbolizer(
+                config,
+                "10",
+                "#0000ff",
+                "20, 15",
+                "round",
+                null,
+                null,
+                null
+        );
+
+        drawLineSymbolizer(chosenVertices, lineSymbolizer, true);
+        drawLineSymbolizer(chosenVertices2, lineSymbolizer2, true);
+//        drawLineSymbolizer(chosenVertices3, lineSymbolizer3, true);
+//        drawLineSymbolizer(chosenVertices4, lineSymbolizer4, false);
+    }
+
     @Override
     public void onDrawFrame(GL10 glUnused) {
-        GLES20.glEnable(GLES20.GL_DEPTH_TEST);
-        GLES20.glEnable(GLES20.GL_BLEND);
-        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+//        GLES20.glEnable(GLES20.GL_DEPTH_TEST);
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_STENCIL_BUFFER_BIT);
 
-        builder.draw();
+//        builder.draw();
 //        testStroke();
 //        testText();
+//        testClosedShape();
+//        testLineSymbolizer();
+        for (Layer layer : styleParser.layers) {
+            layer.draw();
+        }
     }
 }

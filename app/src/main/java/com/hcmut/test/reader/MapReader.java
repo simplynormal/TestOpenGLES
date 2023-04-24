@@ -1,9 +1,9 @@
-package com.hcmut.test.map;
+package com.hcmut.test.reader;
 
 import android.content.Context;
 
-import com.hcmut.test.data.Node;
-import com.hcmut.test.data.Way;
+import com.hcmut.test.osm.Node;
+import com.hcmut.test.osm.Way;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -90,8 +90,12 @@ public class MapReader {
                     }
                 } else if (eventType == XmlPullParser.END_TAG) {
                     if (name.equals("way")) {
-                        if (wayParent != null && !isAtleastOneNodeInBound) {
-                            ways.values().remove(wayParent);
+                        if (wayParent != null) {
+                            if (!isAtleastOneNodeInBound) {
+                                ways.values().remove(wayParent);
+                            } else {
+                                wayParent.wrapUpNodes();
+                            }
                         }
                         wayParent = null;
                         isAtleastOneNodeInBound = false;

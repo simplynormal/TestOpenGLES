@@ -45,6 +45,14 @@ public class Point {
         return new Point((x + p.x) / 2, (y + p.y) / 2, (z + p.z) / 2);
     }
 
+    public Point scale(float scale) {
+        return new Point(x * scale, y * scale, z * scale);
+    }
+
+    public Point transform(float originX, float originY, float scale) {
+        return new Point((x - originX) * scale, (y - originY) * scale, z);
+    }
+
     public Point add(Vector v) {
         return new Point(this.x + v.x, this.y + v.y, this.z + v.z);
     }

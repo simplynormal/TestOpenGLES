@@ -5,16 +5,13 @@ import android.opengl.GLES20;
 import com.hcmut.test.algorithm.StrokeGenerator;
 import com.hcmut.test.algorithm.StrokeGenerator.Stroke;
 import com.hcmut.test.data.VertexArray;
-import com.hcmut.test.data.Way;
+import com.hcmut.test.osm.Way;
 import com.hcmut.test.geometry.LineStrip;
 import com.hcmut.test.geometry.Point;
-import com.hcmut.test.geometry.Triangle;
 import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.programs.ColorShaderProgram;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 
 public class HighwayDrawer extends Drawable {
     HashMap<String, TriangleStrip> wayFill = new HashMap<>();
@@ -48,7 +45,7 @@ public class HighwayDrawer extends Drawable {
         if (!way.tags.containsKey("highway")) return;
 
         LineStrip linePoints = new LineStrip(way.toPoints(originX, originY, scale));
-        Stroke stroke = StrokeGenerator.generateStrokeT(linePoints, 8, 0.02f);
+        Stroke stroke = StrokeGenerator.generateStroke(linePoints, 8, 0.02f);
         TriangleStrip border = StrokeGenerator.generateBorderFromStroke(stroke, 8, 0.002f);
 
         wayFill.put(key, stroke.toTriangleStrip());

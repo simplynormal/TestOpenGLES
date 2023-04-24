@@ -1,7 +1,7 @@
 package com.hcmut.test.geometry;
 
-import com.hcmut.test.data.Node;
-import com.hcmut.test.data.Way;
+import com.hcmut.test.osm.Node;
+import com.hcmut.test.osm.Way;
 import com.hcmut.test.geometry.equation.LineEquation;
 
 import org.poly2tri.Poly2Tri;
@@ -9,16 +9,20 @@ import org.poly2tri.geometry.polygon.PolygonPoint;
 import org.poly2tri.triangulation.delaunay.DelaunayTriangle;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class Polygon extends PointList {
     public final List<Polygon> holes;
+    private final List<Triangle> triangulatedTriangles = new ArrayList<>();
 
     public Polygon(List<Point> points) {
         super(points);
         this.holes = new ArrayList<>();
         checkInit();
+    }
+
+    public Polygon(PointList pointList) {
+        this(pointList.points);
     }
 
     public Polygon(Way way) {
@@ -38,10 +42,6 @@ public class Polygon extends PointList {
         holes.add(new Polygon(hole));
     }
 
-    public boolean isClosed() {
-        return points.size() > 0 && points.get(0).equals(points.get(points.size() - 1));
-    }
-
     private void checkInit() {
         assert points.size() > 3 : "Polygon must have at least 3 points";
         assert isClosed() : "Polygon must be closed";
@@ -56,6 +56,10 @@ public class Polygon extends PointList {
     }
 
     public List<Triangle> triangulate() {
+        if (triangulatedTriangles.size() > 0) {
+            return triangulatedTriangles;
+        }
+
         ArrayList<PolygonPoint> triangulatePoints = new ArrayList<>();
         for (Point p : points) {
             triangulatePoints.add(new PolygonPoint(p.x, p.y));
@@ -81,7 +85,21 @@ public class Polygon extends PointList {
                     (float) triangle.points[2].getX(), (float) triangle.points[2].getY(), curZ
             ));
         }
+
+        triangulatedTriangles.addAll(triangles);
         return triangles;
+    }
+
+    public float getArea() {
+        if (triangulatedTriangles.size() == 0) {
+            triangulate();
+        }
+
+        float area = 0;
+        for (Triangle triangle : triangulatedTriangles) {
+            area += triangle.getArea();
+        }
+        return area;
     }
 
     public boolean doesContain(Point point) {
@@ -115,5 +133,45 @@ public class Polygon extends PointList {
                 }
             }
         }
+    }
+
+    public Polygon scale(float scale) {
+        List<Point> scaledPoints = new ArrayList<>();
+        for (Point point : points) {
+            scaledPoints.add(point.scale(scale));
+        }
+        Polygon rv = new Polygon(scaledPoints);
+        for (Polygon hole : holes) {
+            rv.addHole(hole.scale(scale));
+        }
+        for (Triangle triangle : triangulatedTriangles) {
+            Triangle scaledTriangle = new Triangle(
+                    triangle.p1.scale(scale),
+                    triangle.p2.scale(scale),
+                    triangle.p3.scale(scale)
+            );
+            rv.triangulatedTriangles.add(scaledTriangle);
+        }
+        return rv;
+    }
+
+    public Polygon transform(float originX, float originY, float scale) {
+        List<Point> scaledPoints = new ArrayList<>();
+        for (Point point : points) {
+            scaledPoints.add(point.transform(originX, originY, scale));
+        }
+        Polygon rv = new Polygon(scaledPoints);
+        for (Polygon hole : holes) {
+            rv.addHole(hole.transform(originX, originY, scale));
+        }
+        for (Triangle triangle : triangulatedTriangles) {
+            Triangle scaledTriangle = new Triangle(
+                    triangle.p1.transform(originX, originY, scale),
+                    triangle.p2.transform(originX, originY, scale),
+                    triangle.p3.transform(originX, originY, scale)
+            );
+            rv.triangulatedTriangles.add(scaledTriangle);
+        }
+        return rv;
     }
 }

@@ -10,22 +10,15 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PathMeasure;
 import android.graphics.PorterDuff;
-import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.opengl.GLES20;
-import android.util.Pair;
 
-import com.hcmut.test.algorithm.StrokeGenerator;
 import com.hcmut.test.data.VertexArray;
-import com.hcmut.test.data.Way;
-import com.hcmut.test.geometry.LineStrip;
+import com.hcmut.test.osm.Way;
 import com.hcmut.test.geometry.Point;
-import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.programs.ColorShaderProgram;
 import com.hcmut.test.programs.TextShaderProgram;
 
-import java.io.InputStream;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;

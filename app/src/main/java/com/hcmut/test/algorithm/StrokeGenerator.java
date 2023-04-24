@@ -1,41 +1,70 @@
 package com.hcmut.test.algorithm;
 
 
+import android.annotation.SuppressLint;
 import android.util.Pair;
 
-import com.hcmut.test.geometry.Line;
 import com.hcmut.test.geometry.LineStrip;
 import com.hcmut.test.geometry.Point;
 import com.hcmut.test.geometry.Polygon;
 import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.geometry.Vector;
 
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.operation.buffer.BufferParameters;
+import org.locationtech.jts.operation.buffer.OffsetCurveBuilder;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+@SuppressLint("NewApi")
 public class StrokeGenerator {
     private static boolean DEBUG = true;
     private static final float Z_BORDER = -5e-4f;
+
+    private static final GeometryFactory geometryFactory = new GeometryFactory();
+    public enum StrokeLineJoin {
+        MITER,
+        BEVEL,
+        ROUND
+    }
+
+    public enum StrokeLineCap {
+        BUTT, ROUND, SQUARE
+    }
 
     private static class PolygonalBrush {
         private List<Point> points;
         private Point center;
         private int curActivePointIdx = 0;
         private int prevTangentCoef = 1;
+        private final StrokeLineCap strokeLineCap;
+        private final float r;
 
         public PolygonalBrush(int n, float r, Point center) {
             this(n, r, center, 0);
         }
 
-        public PolygonalBrush(int n, float r, Point center, float z) {
+        public PolygonalBrush(int n, float r, Point center, StrokeLineCap strokeLineCap) {
+            this(n, r, center, 0, strokeLineCap);
+        }
+
+        public PolygonalBrush(int n, float r, Point center, float z, StrokeLineCap strokeLineCap) {
             assert n % 2 == 0 && n >= 4 : "n must be even and >= 4";
             points = new ArrayList<>();
             for (int i = 0; i < n; i++) {
                 float angle = (float) -(2 * Math.PI * i / n);
                 points.add(new Point(center.x + r * (float) Math.cos(angle), center.y + r * (float) Math.sin(angle), z));
             }
+            this.r = r;
             this.center = center;
+            this.strokeLineCap = strokeLineCap;
+        }
+
+        public PolygonalBrush(int n, float r, Point center, float z) {
+            this(n, r, center, z, StrokeLineCap.BUTT);
         }
 
 
@@ -82,12 +111,26 @@ public class StrokeGenerator {
             }
         }
 
-        public List<Point> genEndCapVertices(Vector v) {
-            List<Point> rv = new ArrayList<>();
-            for (int i = 0; i < points.size(); i++) {
+        private void initCurActivePointIdx(Vector v) {
+            int n = points.size();
+            for (int i = 0; i < n; i++) {
                 int inTangentRange = isInTangentRange(i, v);
                 if (inTangentRange != 0) {
-                    int n = points.size();
+                    if (inTangentRange == -1) {
+                        curActivePointIdx = (i + n / 2) % n;
+                    } else {
+                        curActivePointIdx = i;
+                    }
+                }
+            }
+        }
+
+        public List<Point> genRoundCapVertices(Vector v) {
+            List<Point> rv = new ArrayList<>();
+            int n = points.size();
+            for (int i = 0; i < n; i++) {
+                int inTangentRange = isInTangentRange(i, v);
+                if (inTangentRange != 0) {
 
                     if (inTangentRange == -1) {
                         for (int j = i; j != (i + n / 2) % n; j = (j + 1) % n) {
@@ -109,8 +152,43 @@ public class StrokeGenerator {
             return rv;
         }
 
+        public List<Point> genButtCapVertices(Vector v) {
+            initCurActivePointIdx(v);
+
+            Vector v1 = v.orthogonal2d().normalize().mul(r);
+            Vector v2 = v1.negate();
+            return new ArrayList<>() {{
+                add(center.add(v2));
+                add(center.add(v1));
+            }};
+        }
+
+        public List<Point> genSquareCapVertices(Vector v) {
+            Vector dir = v.negate().normalize().mul(r);
+
+            return new ArrayList<>() {{
+                for (Point p : genButtCapVertices(v)) {
+                    add(p.add(dir));
+                }
+            }};
+        }
+
         public List<Point> genEndCapTriangleStrip(Vector v, boolean isStart) {
-            List<Point> points = genEndCapVertices(v);
+            List<Point> points;
+            switch (strokeLineCap) {
+                case BUTT:
+                    points = genButtCapVertices(v);
+                    break;
+                case ROUND:
+                    points = genRoundCapVertices(v);
+                    break;
+                case SQUARE:
+                    points = genSquareCapVertices(v);
+                    break;
+                default:
+                    throw new RuntimeException("Unknown strokeLineCap: " + strokeLineCap);
+            }
+
             List<Point> rv = new ArrayList<>();
             int n = points.size();
             for (int i = 0; i <= n / 2; i++) {
@@ -199,86 +277,10 @@ public class StrokeGenerator {
         }
     }
 
-    public static Polygon removeRearHoles(Polygon p) {
-        int i = 0;
-        // Copy the list so that we can modify it
-        List<Point> points = new ArrayList<>(p.points);
-        points.remove(points.size() - 1);
-        while (i < points.size()) {
-            Point p1 = points.get(i);
-            Point p2 = points.get((i + 1) % points.size());
-
-            int n = points.size();
-            for (int j = (i - 1 + n) % n; j != (i + 2) % n; j = (j - 1 + n) % n) {
-                Point p3 = points.get((j - 1 + n) % n);
-                Point p4 = points.get(j);
-                Point intersection = Line.getIntersection(p1, p2, p3, p4);
-                if (intersection != null) {
-                    // Remove points from i + 1 to j - 1
-                    for (int k = (i + 1) % n; k != j; k = (k + 1) % n) {
-                        points.remove((i + 1) % points.size());
-                    }
-                    points.add((i + 1) % points.size(), intersection);
-                    break;
-                }
-            }
-
-            i++;
-        }
-        points.add(points.get(0));
-
-        return new Polygon(points);
-    }
-
-    private static Polygon generateStroke(LineStrip line, PolygonalBrush brush) {
-        List<Point> vertices = new ArrayList<>();
-        List<Point> head = brush.genEndCapVertices(new Vector(line.points.get(0), line.points.get(1)));
-        List<Point> firstHalf = new ArrayList<>();
-        List<Point> secondHalf = new ArrayList<>();
-
-        for (int i = 1; i < line.points.size() - 1; i++) {
-            brush.relocate(line.points.get(i));
-            Vector v = new Vector(line.points.get(i), line.points.get(i + 1));
-            Pair<List<Point>, List<Point>> tangentVertices = brush.genTangentVertices(v);
-            Collections.reverse(tangentVertices.second);
-            firstHalf.addAll(tangentVertices.first);
-            secondHalf.addAll(0, tangentVertices.second);
-        }
-
-        brush.relocate(line.points.get(line.points.size() - 1));
-        List<Point> tail = brush.genEndCapVertices(new Vector(line.points.get(line.points.size() - 1), line.points.get(line.points.size() - 2)));
-
-        vertices.addAll(head);
-        vertices.addAll(firstHalf);
-        vertices.addAll(tail);
-        vertices.addAll(secondHalf);
-        vertices.add(vertices.get(0));
-
-        Polygon rv = new Polygon(vertices);
-        rv = removeRearHoles(rv);
-
-        if (DEBUG) {
-            for (Point p : rv.points) {
-                System.out.println("(" + p.x + ", " + p.y + ")");
-            }
-            DEBUG = false;
-        }
-
-        return rv;
-    }
-
-    private static Stroke generateStrokeT(LineStrip line, PolygonalBrush brush) {
+    private static Stroke generateStroke(LineStrip line, PolygonalBrush brush) {
         Stroke rv = new Stroke();
         List<Point> head = brush.genEndCapTriangleStrip(new Vector(line.points.get(0), line.points.get(1)), true);
-
-        if (line.isClosed()) {
-            Point first = head.get(head.size() - 2);
-            Point second = head.get(head.size() - 1);
-            rv.points.add(0, first);
-            rv.points.add(1, second);
-        } else {
-            rv.points.addAll(0, head);
-        }
+        rv.points.addAll(head);
 
         for (int i = 1; i < line.points.size() - 1; i++) {
             brush.relocate(line.points.get(i));
@@ -292,25 +294,21 @@ public class StrokeGenerator {
 
         brush.relocate(line.points.get(line.points.size() - 1));
         List<Point> tail = brush.genEndCapTriangleStrip(new Vector(line.points.get(line.points.size() - 1), line.points.get(line.points.size() - 2)), false);
-
-        if (line.isClosed()) {
-            Point first = head.get(head.size() - 2);
-            Point second = head.get(head.size() - 1);
-            rv.points.add(first);
-            rv.points.add(second);
-        } else {
-            rv.points.addAll(tail);
-        }
+        rv.points.addAll(tail);
 
         return rv;
     }
 
-    public static Polygon generateStroke(LineStrip line, int n, float r) {
+    public static Stroke generateStroke(LineStrip line, int n, float r) {
         return generateStroke(line, new PolygonalBrush(n, r, line.points.get(0)));
     }
 
-    public static Stroke generateStrokeT(LineStrip line, int n, float r) {
-        return generateStrokeT(line, new PolygonalBrush(n, r, line.points.get(0)));
+    public static Stroke generateStroke(LineStrip line, int n, float r, StrokeLineCap cap) {
+        return generateStroke(line, new PolygonalBrush(n, r, line.points.get(0), cap));
+    }
+
+    public static Stroke generateStroke(LineStrip line, int n, float r, float z, StrokeLineCap cap) {
+        return generateStroke(line, new PolygonalBrush(n, r, line.points.get(0), z, cap));
     }
 
     public static List<Point> strokeToOrderedPoints(TriangleStrip stroke) {
@@ -328,7 +326,7 @@ public class StrokeGenerator {
     }
 
     public static TriangleStrip generateBorder(LineStrip line, int n, float r) {
-        return generateStrokeT(line, new PolygonalBrush(n, r, line.points.get(0), Z_BORDER)).toTriangleStrip();
+        return generateStroke(line, new PolygonalBrush(n, r, line.points.get(0), Z_BORDER)).toTriangleStrip();
     }
 
     public static TriangleStrip generateBorder(Polygon polygon, int n, float r) {
@@ -344,6 +342,41 @@ public class StrokeGenerator {
     public static TriangleStrip generateBorderFromStroke(Stroke stroke, int n, float r) {
         LineStrip line = new LineStrip(stroke.toOrderedPoints());
         return generateBorder(line, n, r);
+    }
+
+    public static LineStrip offsetLineStrip(LineStrip lineStrip, float offset, StrokeLineJoin lineJoin) {
+        if (offset == 0) return lineStrip;
+
+        // Create a JTS LineString from the input points
+        Coordinate[] coordinates = lineStrip.points.stream()
+                .map(p -> new Coordinate(p.x, p.y))
+                .toArray(Coordinate[]::new);
+
+        BufferParameters bufferParameters = new BufferParameters();
+        switch (lineJoin) {
+            case MITER:
+                bufferParameters.setJoinStyle(BufferParameters.JOIN_MITRE);
+                break;
+            case BEVEL:
+                bufferParameters.setJoinStyle(BufferParameters.JOIN_BEVEL);
+                break;
+            case ROUND:
+                bufferParameters.setJoinStyle(BufferParameters.JOIN_ROUND);
+                break;
+        }
+
+        OffsetCurveBuilder offsetCurveBuilder = new OffsetCurveBuilder(geometryFactory.getPrecisionModel(), bufferParameters);
+
+        // Offset the line using JTS OffsetCurveBuilder
+        Coordinate[] offsetCoordinates = offsetCurveBuilder.getOffsetCurve(coordinates, offset);
+
+        // Convert the offset coordinates back to a list of Point objects
+        List<Point> offsetPoints = new ArrayList<>();
+        for (Coordinate offsetCoordinate : offsetCoordinates) {
+            offsetPoints.add(new Point((float) offsetCoordinate.x, (float) offsetCoordinate.y));
+        }
+
+        return new LineStrip(offsetPoints);
     }
 
     public static void test() {

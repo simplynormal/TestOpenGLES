@@ -1,18 +1,19 @@
 package com.hcmut.test.geometry;
 
-import com.hcmut.test.data.Way;
+import com.hcmut.test.osm.Way;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class LineStrip {
-    public final ArrayList<Point> points;
-
+public class LineStrip extends PointList {
     public LineStrip(List<Point> points) {
-        this.points = new ArrayList<>(points);
+        super(points);
         checkInit();
     }
 
+    public LineStrip(PointList points) {
+        this(points.points);
+    }
     public LineStrip(Point[] points) {
         this(List.of(points));
     }
@@ -32,10 +33,18 @@ public class LineStrip {
     }
 
     private void checkInit() {
-        assert points.size() >= 2 : "LineStrip must have at least 2 points";
+//        assert points.size() >= 2 : "LineStrip must have at least 2 points";
     }
 
     public boolean isClosed() {
         return points.size() > 0 && points.get(0).equals(points.get(points.size() - 1));
+    }
+
+    public float getLength() {
+        float length = 0;
+        for (int i = 0; i < points.size() - 1; i++) {
+            length += points.get(i).distance(points.get(i + 1));
+        }
+        return length;
     }
 }

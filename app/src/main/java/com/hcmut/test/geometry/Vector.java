@@ -90,7 +90,7 @@ public class Vector {
         );
     }
 
-    public Vector orthogonal() {
+    public Vector orthogonal2d() {
         return new Vector(-this.y, this.x, this.z);
     }
 
