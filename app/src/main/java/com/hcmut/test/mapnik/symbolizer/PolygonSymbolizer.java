@@ -10,6 +10,7 @@ import com.hcmut.test.geometry.Polygon;
 import com.hcmut.test.geometry.Triangle;
 import com.hcmut.test.osm.Way;
 import com.hcmut.test.programs.ColorShaderProgram;
+import com.hcmut.test.programs.ShaderProgram;
 import com.hcmut.test.utils.Config;
 
 import java.util.ArrayList;
@@ -71,6 +72,11 @@ public class PolygonSymbolizer extends Symbolizer {
 
     @Override
     public void draw(VertexArray vertexArray, float[] rawDrawable) {
+    }
+
+    @Override
+    public ShaderProgram getShaderProgram() {
+        return config.colorShaderProgram;
     }
 
     @NonNull

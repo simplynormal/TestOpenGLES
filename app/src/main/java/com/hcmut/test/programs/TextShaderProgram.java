@@ -84,6 +84,8 @@ public class TextShaderProgram extends ShaderProgram {
     }
 
     public int loadTexture(@NonNull Bitmap bitmap) {
+        super.useProgram();
+
         final int[] textureObjectIds = new int[1];
         glGenTextures(1, textureObjectIds, 0);
 

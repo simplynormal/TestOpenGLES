@@ -17,6 +17,7 @@ public abstract class Symbolizer {
     abstract public float[] appendDrawable(float[] oldDrawable, float[] newDrawable);
     abstract public void draw(VertexArray vertexArray, float[] rawDrawable);
     abstract public void draw(VertexArray vertexArray);
+    abstract public ShaderProgram getShaderProgram();
 
     protected Symbolizer(Config config) {
         this.config = config;

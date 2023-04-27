@@ -11,6 +11,7 @@ import com.hcmut.test.geometry.Point;
 import com.hcmut.test.geometry.PointList;
 import com.hcmut.test.mapnik.symbolizer.Symbolizer;
 import com.hcmut.test.osm.Way;
+import com.hcmut.test.programs.ShaderProgram;
 import com.hcmut.test.utils.Config;
 
 import java.util.ArrayList;
@@ -157,6 +158,7 @@ public class Rule {
     public void wrapUpWays() {
         for (int i = 0; i < symbolizers.size(); i++) {
             Symbolizer symbolizer = symbolizers.get(i);
+            ShaderProgram shaderProgram = symbolizer.getShaderProgram();
             HashMap<String, float[]> vertexArrayRaw = this.vertexArrayRaw.get(i);
             if (symbolizer.isAppendable()) {
                 float[] raw = new float[0];
@@ -165,7 +167,7 @@ public class Rule {
                 }
 
                 if (raw.length > 0) {
-                    VertexArray va = new VertexArray(config.colorShaderProgram, raw);
+                    VertexArray va = new VertexArray(shaderProgram, raw);
                     appendables.put(symbolizer, va);
                 } else {
                     appendables.put(symbolizer, null);
@@ -175,7 +177,7 @@ public class Rule {
                 for (float[] vertexArrayRawValue : vertexArrayRaw.values()) {
                     List<Pair<VertexArray, float[]>> list = nonAppendables.get(symbolizer);
                     assert list != null;
-                    VertexArray va = new VertexArray(config.colorShaderProgram, vertexArrayRawValue);
+                    VertexArray va = new VertexArray(shaderProgram, vertexArrayRawValue);
                     list.add(new Pair<>(va, vertexArrayRawValue));
                 }
             }

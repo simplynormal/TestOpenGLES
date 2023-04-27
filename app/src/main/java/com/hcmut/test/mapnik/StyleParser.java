@@ -114,62 +114,62 @@ public class StyleParser {
                             String fillOpacity = xpp.getAttributeValue(null, "fill-opacity");
                             ruleParent.addSymbolizer(new PolygonSymbolizer(config, fill, fillOpacity));
                             break;
-//                        case "TextSymbolizer":
-//                            if (ruleParent == null) break;
-//                            /*
-//                             * textName
-//                             * dx
-//                             * dy
-//                             * spacing
-//                             * repeatDistance
-//                             * maxCharAngleDelta
-//                             * fill
-//                             * opacity
-//                             * placement
-//                             * verticalAlignment
-//                             * horizontalAlignment
-//                             * justifyAlignment
-//                             * wrapWidth
-//                             * size
-//                             * haloFill
-//                             * haloRadius
-//                             * */
-//                            String dx = xpp.getAttributeValue(null, "dx");
-//                            String dy = xpp.getAttributeValue(null, "dy");
-//                            String spacing = xpp.getAttributeValue(null, "spacing");
-//                            String repeatDistance = xpp.getAttributeValue(null, "repeatDistance");
-//                            String maxCharAngleDelta = xpp.getAttributeValue(null, "maxCharAngleDelta");
-//                            String fill1 = xpp.getAttributeValue(null, "fill");
-//                            String opacity = xpp.getAttributeValue(null, "opacity");
-//                            String placement = xpp.getAttributeValue(null, "placement");
-//                            String verticalAlignment = xpp.getAttributeValue(null, "verticalAlignment");
-//                            String horizontalAlignment = xpp.getAttributeValue(null, "horizontalAlignment");
-//                            String justifyAlignment = xpp.getAttributeValue(null, "justifyAlignment");
-//                            String wrapWidth = xpp.getAttributeValue(null, "wrapWidth");
-//                            String size = xpp.getAttributeValue(null, "size");
-//                            String haloFill = xpp.getAttributeValue(null, "haloFill");
-//                            String haloRadius = xpp.getAttributeValue(null, "haloRadius");
-//                            String textName = xpp.nextText();
-//                            ruleParent.addSymbolizer(new TextSymbolizer(
-//                                    config,
-//                                    textName,
-//                                    dx,
-//                                    dy,
-//                                    spacing,
-//                                    repeatDistance,
-//                                    maxCharAngleDelta,
-//                                    fill1,
-//                                    opacity,
-//                                    placement,
-//                                    verticalAlignment,
-//                                    horizontalAlignment,
-//                                    justifyAlignment,
-//                                    wrapWidth,
-//                                    size,
-//                                    haloFill,
-//                                    haloRadius
-//                            ));
-//                            break;
+                        case "TextSymbolizer":
+                            if (ruleParent == null) break;
+                            /*
+                             * textName
+                             * dx
+                             * dy
+                             * spacing
+                             * repeatDistance
+                             * maxCharAngleDelta
+                             * fill
+                             * opacity
+                             * placement
+                             * verticalAlignment
+                             * horizontalAlignment
+                             * justifyAlignment
+                             * wrapWidth
+                             * size
+                             * haloFill
+                             * haloRadius
+                             * */
+                            String dx = xpp.getAttributeValue(null, "dx");
+                            String dy = xpp.getAttributeValue(null, "dy");
+                            String spacing = xpp.getAttributeValue(null, "spacing");
+                            String repeatDistance = xpp.getAttributeValue(null, "repeatDistance");
+                            String maxCharAngleDelta = xpp.getAttributeValue(null, "maxCharAngleDelta");
+                            String fill1 = xpp.getAttributeValue(null, "fill");
+                            String opacity = xpp.getAttributeValue(null, "opacity");
+                            String placement = xpp.getAttributeValue(null, "placement");
+                            String verticalAlignment = xpp.getAttributeValue(null, "verticalAlignment");
+                            String horizontalAlignment = xpp.getAttributeValue(null, "horizontalAlignment");
+                            String justifyAlignment = xpp.getAttributeValue(null, "justifyAlignment");
+                            String wrapWidth = xpp.getAttributeValue(null, "wrapWidth");
+                            String size = xpp.getAttributeValue(null, "size");
+                            String haloFill = xpp.getAttributeValue(null, "haloFill");
+                            String haloRadius = xpp.getAttributeValue(null, "haloRadius");
+                            String textExpr = xpp.nextText();
+                            ruleParent.addSymbolizer(new TextSymbolizer(
+                                    config,
+                                    textExpr,
+                                    dx,
+                                    dy,
+                                    spacing,
+                                    repeatDistance,
+                                    maxCharAngleDelta,
+                                    fill1,
+                                    opacity,
+                                    placement,
+                                    verticalAlignment,
+                                    horizontalAlignment,
+                                    justifyAlignment,
+                                    wrapWidth,
+                                    size,
+                                    haloFill,
+                                    haloRadius
+                            ));
+                            break;
                     }
                 } else if (eventType == XmlPullParser.END_TAG) {
                     switch (name) {

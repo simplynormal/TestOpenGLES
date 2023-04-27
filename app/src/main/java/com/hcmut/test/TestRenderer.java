@@ -18,6 +18,7 @@ import com.hcmut.test.geometry.Vector;
 import com.hcmut.test.mapnik.Layer;
 import com.hcmut.test.mapnik.symbolizer.LineSymbolizer;
 import com.hcmut.test.mapnik.StyleParser;
+import com.hcmut.test.mapnik.symbolizer.TextSymbolizer;
 import com.hcmut.test.reader.MapReader;
 import com.hcmut.test.object.ObjectBuilder;
 import com.hcmut.test.osm.Way;
@@ -89,20 +90,20 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         int height = context.getResources().getDisplayMetrics().heightPixels;
         config.setWidthHeight(width, height);
 
-//        float minLon = 106.73603f;
-//        float maxLon = 106.74072f;
-//        float minLat = 10.73122f;
-//        float maxLat = 10.73465f;
+        float minLon = 106.73603f;
+        float maxLon = 106.74072f;
+        float minLat = 10.73122f;
+        float maxLat = 10.73465f;
 
 //        float minLon = 106.71410f;
 //        float maxLon = 106.72421f;
 //        float minLat = 10.72307f;
 //        float maxLat = 10.72860f;
 
-        float minLon = 106.7091f;
-        float maxLon = 106.7477f;
-        float minLat = 10.7190f;
-        float maxLat = 10.7455f;
+//        float minLon = 106.7091f;
+//        float maxLon = 106.7477f;
+//        float minLat = 10.7190f;
+//        float maxLat = 10.7455f;
 
         originX = (minLon + maxLon) / 2;
         originY = (minLat + maxLat) / 2;
@@ -111,11 +112,11 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         config.setScaleDenominator(1000);
 
         try {
-            mapReader = new MapReader(context, R.raw.map);
-            mapReader.setBounds(minLon, maxLon, minLat, maxLat);
-            mapReader.read();
+            mapReader = new MapReader(context, R.raw.map1);
+//            mapReader.setBounds(minLon, maxLon, minLat, maxLat);
+//            mapReader.read();
             styleParser = new StyleParser(context, R.raw.mapnik, config);
-            styleParser.read();
+//            styleParser.read();
         } catch (XmlPullParserException e) {
             throw new RuntimeException(e);
         }
@@ -535,6 +536,64 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 //        drawLineSymbolizer(chosenVertices4, lineSymbolizer4, false);
     }
 
+    void drawTextSymbolizer(float[] chosenVertices, TextSymbolizer textSymbolizer, boolean drawPoints) {
+        List<Point> points = Point.toPoints(chosenVertices);
+        PointList pointList = new PointList(points);
+        Way way = new Way();
+        way.tags.put("daw", "replaced");
+        float[] drawables = textSymbolizer.toDrawable(way, pointList);
+        VertexArray vertexArray = new VertexArray(textProgram, drawables);
+        textSymbolizer.draw(vertexArray, drawables);
+    }
+
+    void testTextSymbolizer() {
+        float[] chosenVertices = vertices1;
+
+        float[] first = new float[]{
+                chosenVertices[0], chosenVertices[1], chosenVertices[2],
+        };
+
+        for (int i = 0; i < chosenVertices.length; i += 3) {
+            chosenVertices[i] -= first[0];
+            chosenVertices[i + 1] -= first[1];
+            chosenVertices[i + 2] -= first[2];
+        }
+
+        TextSymbolizer textSymbolizer = new TextSymbolizer(
+                config,
+                "[daw] + ' dawdawd'",
+                "0",
+                "0",
+                "0",
+                "0",
+                "0",
+                null,
+                null,
+                "line",
+                null,
+                null,
+                null,
+                null,
+                "15",
+                "#ffffff",
+                "1"
+        );
+
+        LineSymbolizer lineSymbolizer = new LineSymbolizer(
+                config,
+                "15",
+                "#ffffff",
+                null,
+                "round",
+                null,
+                null,
+                "0"
+        );
+
+        drawLineSymbolizer(chosenVertices, lineSymbolizer, false);
+        drawTextSymbolizer(chosenVertices, textSymbolizer, true);
+    }
+
     @Override
     public void onDrawFrame(GL10 glUnused) {
 //        GLES20.glEnable(GLES20.GL_DEPTH_TEST);
@@ -545,8 +604,9 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 //        testText();
 //        testClosedShape();
 //        testLineSymbolizer();
-        for (Layer layer : styleParser.layers) {
-            layer.draw();
-        }
+        testTextSymbolizer();
+//        for (Layer layer : styleParser.layers) {
+//            layer.draw();
+//        }
     }
 }

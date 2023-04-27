@@ -8,8 +8,13 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PathMeasure;
+import android.graphics.PorterDuff;
 import android.graphics.Typeface;
 import android.opengl.GLES20;
+import android.os.Environment;
+import android.provider.MediaStore;
+import android.util.Log;
+import android.util.Pair;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -18,39 +23,44 @@ import com.hcmut.test.data.VertexArray;
 import com.hcmut.test.geometry.Point;
 import com.hcmut.test.geometry.PointList;
 import com.hcmut.test.osm.Way;
+import com.hcmut.test.programs.ShaderProgram;
 import com.hcmut.test.programs.TextShaderProgram;
 import com.hcmut.test.utils.Config;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @SuppressLint("NewApi")
 public class TextSymbolizer extends Symbolizer {
     /*
-    * textName
-    * dx
-    * dy
-    * spacing
-    * repeatDistance
-    * maxCharAngleDelta
-    * fill
-    * opacity
-    * placement
-    * verticalAlignment
-    * horizontalAlignment
-    * justifyAlignment
-    * wrapWidth
-    * size
-    * haloFill
-    * haloRadius
-    * */
-    private final String textName;
-    private final List<String> textNameVars = new ArrayList<>();
+     * textName
+     * dx
+     * dy
+     * spacing
+     * repeatDistance
+     * maxCharAngleDelta
+     * fill
+     * opacity
+     * placement
+     * verticalAlignment
+     * horizontalAlignment
+     * justifyAlignment
+     * wrapWidth
+     * size
+     * haloFill
+     * haloRadius
+     * */
+    private final Function<HashMap<String, String>, String> textExprEvaluator;
+    private final String textExprString;
     private final float dx;
     private final float dy;
     private final float spacing;
@@ -67,18 +77,20 @@ public class TextSymbolizer extends Symbolizer {
     private final float haloRadius;
     private final HashMap<float[], Integer> textTextureIds = new HashMap<>();
     private static Typeface tf = null;
+    private static boolean IS_SAVE = false;
 
-    public TextSymbolizer(Config config, @Nullable String textName, @Nullable String dx, @Nullable String dy, @Nullable String spacing, @Nullable String repeatDistance, @Nullable String maxCharAngleDelta, @Nullable String fill, @Nullable String opacity, @Nullable String placement, @Nullable String verticalAlignment, @Nullable String horizontalAlignment, @Nullable String justifyAlignment, @Nullable String wrapWidth, @Nullable String size, @Nullable String haloFill, @Nullable String haloRadius) {
+    public TextSymbolizer(Config config, @Nullable String textExpr, @Nullable String dx, @Nullable String dy, @Nullable String spacing, @Nullable String repeatDistance, @Nullable String maxCharAngleDelta, @Nullable String fill, @Nullable String opacity, @Nullable String placement, @Nullable String verticalAlignment, @Nullable String horizontalAlignment, @Nullable String justifyAlignment, @Nullable String wrapWidth, @Nullable String size, @Nullable String haloFill, @Nullable String haloRadius) {
         super(config);
         if (tf == null) {
             tf = Typeface.createFromAsset(config.context.getAssets(), "NotoSans-Regular.ttf");
         }
-        this.textName = parseTextNameVars(textName);
+        this.textExprString = textExpr;
+        this.textExprEvaluator = createTextExprEvaluator(textExpr);
         this.dx = dx == null ? 0 : Float.parseFloat(dx);
         this.dy = dy == null ? 0 : Float.parseFloat(dy);
         this.spacing = spacing == null ? 0 : Float.parseFloat(spacing);
         this.repeatDistance = repeatDistance == null ? 0 : Float.parseFloat(repeatDistance);
-        this.maxCharAngleDelta = maxCharAngleDelta == null ? 0 : Float.parseFloat(maxCharAngleDelta);
+        this.maxCharAngleDelta = maxCharAngleDelta == null ? 22.5f : Float.parseFloat(maxCharAngleDelta);
         this.fillColor = parseColorString(fill, opacity == null ? 1 : Float.parseFloat(opacity));
         this.placement = placement == null ? "point" : placement;
         this.verticalAlignment = parseVerticalAlignment(verticalAlignment);
@@ -90,16 +102,45 @@ public class TextSymbolizer extends Symbolizer {
         this.haloRadius = haloRadius == null ? 0 : Float.parseFloat(haloRadius);
     }
 
-    public String parseTextNameVars(String template) {
-        Pattern pattern = Pattern.compile("\\[([a-zA-Z\\d]+)]");
-        Matcher matcher = pattern.matcher(template);
-        while (matcher.find()) {
-            String variable = matcher.group(1);
-            textNameVars.add(variable);
+    public static Function<HashMap<String, String>, String> createTextExprEvaluator(String template) {
+        if (template == null || template.isEmpty()) {
+            return tags -> null;
         }
 
-        return template;
+        Pattern pattern = Pattern.compile("(\\[.+?])|('.+?')");
+        Matcher matcher = pattern.matcher(template);
+        List<Pair<String, Boolean>> expressions = new ArrayList<>(); // <tag, isLiteral>
+
+        while (matcher.find()) {
+            String tag = matcher.group(1);
+            String literal = matcher.group(2);
+
+            if (tag != null) {
+                expressions.add(new Pair<>(tag.substring(1, tag.length() - 1), false));
+            } else if (literal != null) {
+                expressions.add(new Pair<>(literal.substring(1, literal.length() - 1), true));
+            }
+        }
+
+        return tags -> {
+            StringBuilder sb = new StringBuilder();
+            for (Pair<String, Boolean> expression : expressions) {
+                String expr = expression.first;
+                Boolean isLiteral = expression.second;
+                if (isLiteral) {
+                    sb.append(expr);
+                } else {
+                    String replacement = tags.get(expr);
+                    if (replacement == null) {
+                        return null;
+                    }
+                    sb.append(replacement);
+                }
+            }
+            return sb.toString();
+        };
     }
+
     private String parseVerticalAlignment(String verticalAlignment) {
         switch (verticalAlignment == null ? "auto" : verticalAlignment) {
             case "top":
@@ -164,13 +205,9 @@ public class TextSymbolizer extends Symbolizer {
 
     @Override
     public float[] toDrawable(Way way, PointList shape) {
-        String name = textName;
-        for (String var : textNameVars) {
-            String value = way.tags.get(var);
-            if (value == null) {
-                return new float[0];
-            }
-            name = name.replace("[" + var + "]", value);
+        String name = textExprEvaluator.apply(way.tags);
+        if (name == null) {
+            return new float[0];
         }
 
         List<Point> points = shape.points;
@@ -187,11 +224,6 @@ public class TextSymbolizer extends Symbolizer {
             if (p.y < minY) minY = p.y;
         }
 
-        Paint paint = new Paint();
-        paint.setTypeface(tf);
-        paint.setTextSize(size);
-        paint.setAntiAlias(true);
-
         float fontHeight = size;
         float lengthX = maxX - minX;
         float lengthY = maxY - minY;
@@ -204,30 +236,155 @@ public class TextSymbolizer extends Symbolizer {
         minY -= ((float) textureHeight / (textureHeight - 2 * fontHeight) - 1) * lengthY / 2;
         maxY += ((float) textureHeight / (textureHeight - 2 * fontHeight) - 1) * lengthY / 2;
 
-        Bitmap bitmap = Bitmap.createBitmap(textureWidth, textureHeight, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bitmap);
-        paint.setColor(Color.argb(fillColor[3], fillColor[0], fillColor[1], fillColor[2]));
-        paint.setStyle(Paint.Style.FILL);
-        boolean isDrawn = drawText(canvas, paint, name, textureWidth, textureHeight, fontHeight, points);
+        Paint paint = new Paint();
+        paint.setTypeface(tf);
+        paint.setTextSize(size);
+        paint.setAntiAlias(true);
+        paint.setSubpixelText(false); // Disable sub-pixel text rendering
+        paint.setDither(true); // Enable dithering for better color precision
 
-        if (!isDrawn) {
+        Bitmap bitmap = null;
+        switch (placement) {
+            case "line":
+                bitmap = drawLinePlacement(textureWidth, textureHeight, name, points);
+                break;
+//            case "interior":
+//                bitmap = drawInteriorPlacement(textureWidth, textureHeight, name, points);
+//                break;
+//            default:
+//                bitmap = drawPointPlacement(textureWidth, textureHeight, name, points);
+//                break;
+        }
+
+        if (bitmap == null) {
             return new float[0];
         }
 
         TextShaderProgram textShaderProgram = config.textShaderProgram;
-        textShaderProgram.useProgram();
         int textId = textShaderProgram.loadTexture(bitmap);
 
         float[] rv = new float[]{
-                minX, minY, 0.01f, 0, 1,
-                minX, maxY, 0.01f, 0, 0,
-                maxX, minY, 0.01f, 1, 1,
-                maxX, maxY, 0.01f, 1, 0,
+                minX, minY, 0, 0, 1,
+                minX, maxY, 0, 0, 0,
+                maxX, minY, 0, 1, 1,
+                maxX, maxY, 0, 1, 0,
         };
 
         textTextureIds.put(rv, textId);
 
         return rv;
+    }
+
+    private Bitmap drawLinePlacement(int textureWidth, int textureHeight, String name, List<Point> points) {
+        Paint paint = new Paint();
+        paint.setTypeface(tf);
+        paint.setTextSize(size);
+        paint.setAntiAlias(true);
+        paint.setSubpixelText(false); // Disable sub-pixel text rendering
+        paint.setDither(true); // Enable dithering for better color precision
+
+        Bitmap bitmap = Bitmap.createBitmap(textureWidth, textureHeight, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
+//        canvas.drawColor(Color.BLUE);
+
+        GetLinePathResult result = getLinePath(paint, name, points, textureWidth, textureHeight);
+        if (result == null) {
+            return null;
+        }
+
+        Path path = result.path;
+        float hOffset = result.hOffset;
+        float vOffset = result.vOffset;
+
+
+//        if (haloRadius > 0) {
+//            paint.setColor(Color.argb(haloFill[3], haloFill[0], haloFill[1], haloFill[2]));
+//            paint.setStyle(Paint.Style.FILL);
+//            paint.setStrokeWidth(2);
+//            canvas.drawTextOnPath(name, path, hOffset, vOffset, paint);
+//        }
+
+        paint.setColor(Color.argb(fillColor[3], fillColor[0], fillColor[1], fillColor[2]));
+        paint.setStyle(Paint.Style.FILL);
+        paint.setStrokeWidth(0);
+        canvas.drawTextOnPath(name, path, hOffset, vOffset, paint);
+
+        paint.setColor(Color.RED);
+        canvas.drawTextOnPath(name, path, hOffset, 0, paint);
+
+        return bitmap;
+    }
+
+    private static class GetLinePathResult {
+        public Path path;
+        public float hOffset;
+        public float vOffset;
+
+        public GetLinePathResult(Path path, float hOffset, float vOffset) {
+            this.path = path;
+            this.hOffset = hOffset;
+            this.vOffset = vOffset;
+        }
+    }
+
+    private GetLinePathResult getLinePath(Paint paint, String text, List<Point> points, int textureWidth, int textureHeight) {
+        Path path = pointsToPath(points, textureWidth, textureHeight, size);
+
+        PathMeasure pathMeasure = new PathMeasure(path, false);
+        float pathLength = pathMeasure.getLength();
+        float textWidth = paint.measureText(text);
+
+        if (textWidth > pathLength) {
+            return null;
+        }
+
+        float hOffset = (pathLength - textWidth) / 2;
+        float vOffset = (-paint.ascent() + paint.descent()) / 2 - paint.descent();
+
+        boolean isOverMaxCharAngleDelta = checkOverMaxCharAngleDelta(text, pathMeasure, paint, hOffset, maxCharAngleDelta);
+
+        if (isOverMaxCharAngleDelta) {
+            return null;
+        }
+
+        boolean isUpsideDown = checkUpsideDown(pathMeasure, pathLength);
+
+        if (isUpsideDown) {
+            List<Point> newPoints = new ArrayList<>(points);
+            Collections.reverse(newPoints);
+            path = pointsToPath(newPoints, textureWidth, textureHeight, size);
+        }
+
+        return new GetLinePathResult(path, hOffset, vOffset);
+    }
+
+    public void saveBitmapToFile(Bitmap bitmap, String fileName) {
+        File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+        File file = new File(path, fileName);
+
+        if (file.exists()) {
+            if (!IS_SAVE) {
+                file.delete();
+            } else {
+                return;
+            }
+        }
+
+        try {
+            path.mkdirs();
+            FileOutputStream outputStream = new FileOutputStream(file);
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
+            outputStream.flush();
+            outputStream.close();
+
+            MediaStore.Images.Media.insertImage(config.context.getContentResolver(), file.getAbsolutePath(), file.getName(), file.getName());
+
+            Log.i("saveBitmapToFile", "saveBitmapToFile: " + file.getAbsolutePath());
+            IS_SAVE = true;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
@@ -241,6 +398,7 @@ public class TextSymbolizer extends Symbolizer {
         textShaderProgram.setCurrentTexture(textId);
         vertexArray.setDataFromVertexData();
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, 4);
 
     }
 
@@ -258,12 +416,16 @@ public class TextSymbolizer extends Symbolizer {
     public void draw(VertexArray vertexArray) {
     }
 
+    @Override
+    public ShaderProgram getShaderProgram() {
+        return config.textShaderProgram;
+    }
+
     @NonNull
     @Override
     public String toString() {
         return "TextDrawable{" +
-                "textName='" + textName + '\'' +
-                ", textNameVars=" + textNameVars +
+                "textName='" + textExprString + '\'' +
                 ", size=" + size +
                 ", placement='" + placement + '\'' +
                 ", dx=" + dx +
@@ -312,55 +474,63 @@ public class TextSymbolizer extends Symbolizer {
         return path;
     }
 
-    private static boolean drawText(Canvas canvas, Paint paint, String text, int textureWidth, int textureHeight, float fontHeight, List<Point> points) {
-        Path path = pointsToPath(points, textureWidth, textureHeight, fontHeight);
+    public static boolean checkOverMaxCharAngleDelta(String text, PathMeasure pathMeasure, Paint paint, float hOffset, float maxCharAngleDelta) {
+        if (maxCharAngleDelta <= 0) return false;
 
-        PathMeasure pathMeasure = new PathMeasure(path, false);
-        float pathLength = pathMeasure.getLength();
-        float textWidth = paint.measureText(text);
+        float distance = hOffset;
+        float prevAngle = 0;
 
-        if (textWidth > pathLength) {
-            return false;
-        }
-
-        float hOffset = (pathLength - textWidth) / 2;
-        float vOffset = (-paint.ascent() + paint.descent()) / 2 - paint.descent();
-
-        // check if the path is upside down
         float[] pos = new float[2];
         float[] tan = new float[2];
-        float angle;
 
-        float threshold = 60; // adjust this value as needed
+        for (int i = 0; i < text.length(); i++) {
+            String character = text.substring(i, i + 1);
+            float currentWidth = paint.measureText(character);
+            pathMeasure.getPosTan(distance + currentWidth / 2, pos, tan);
+            float angle = (float) Math.atan2(tan[1], tan[0]) * 180 / (float) Math.PI;
+            if (i > 0 && Math.abs(angle - prevAngle) > maxCharAngleDelta) {
+                return true;
+            }
+            prevAngle = angle;
+            distance += currentWidth;
+        }
+
+        return false;
+    }
+
+    private static float calculateAngleDelta(float[] prev, float[] curr, float[] next) {
+        float angle1 = (float) Math.atan2(prev[1] - curr[1], prev[0] - curr[0]);
+        float angle2 = (float) Math.atan2(next[1] - curr[1], next[0] - curr[0]);
+        return (float) Math.toDegrees(angle2 - angle1);
+    }
+
+    private static boolean checkSharpTurn(PathMeasure pathMeasure, float threshold) {
+        if (threshold <= 0) return false;
+
+        float[] pos = new float[2];
+        float[] tan = new float[2];
+
         float prevAngle = 0;
         boolean hasSharpTurn = false;
-        for (float distance = 0; distance < pathLength; distance += 10) {
+        for (float distance = 0; distance < pathMeasure.getLength(); distance += 1) {
             pathMeasure.getPosTan(distance, pos, tan);
-            angle = (float) Math.toDegrees(Math.atan2(tan[1], tan[0]));
-            if (distance > 0 && Math.abs(angle - prevAngle) > threshold) {
+            float angle = (float) Math.atan2(tan[1], tan[0]) * 180 / (float) Math.PI;
+            if (Math.abs(angle - prevAngle) > threshold) {
                 hasSharpTurn = true;
                 break;
             }
             prevAngle = angle;
         }
+        return hasSharpTurn;
+    }
 
-        if (hasSharpTurn) {
-            return false;
-        }
+    private static boolean checkUpsideDown(PathMeasure pathMeasure, float pathLength) {
+        float[] pos = new float[2];
+        float[] tan = new float[2];
 
         pathMeasure.getPosTan(pathLength / 2, pos, tan);
-        angle = (float) Math.toDegrees(Math.atan2(tan[1], tan[0]));
-        boolean isUpsideDown = angle > 90 || angle < -90;
+        float angle = (float) Math.toDegrees(Math.atan2(tan[1], tan[0]));
 
-        if (isUpsideDown) {
-            List<Point> newPoints = new ArrayList<>(points);
-            Collections.reverse(newPoints);
-            path = pointsToPath(newPoints, textureWidth, textureHeight, fontHeight);
-        }
-
-        canvas.drawTextOnPath(text, path, hOffset, vOffset, paint);
-
-//        canvas.drawPath(path, paint);
-        return true;
+        return angle > 90 || angle < -90;
     }
 }
