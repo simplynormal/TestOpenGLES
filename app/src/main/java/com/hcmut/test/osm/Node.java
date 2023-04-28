@@ -7,7 +7,7 @@ import com.hcmut.test.geometry.Point;
 
 import java.util.HashMap;
 
-public class Node {
+public class Node extends Element {
     public final float lat;
     public final float lon;
 

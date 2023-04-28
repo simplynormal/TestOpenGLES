@@ -359,34 +359,6 @@ public class TextSymbolizer extends Symbolizer {
         return new GetLinePathResult(path, hOffset, vOffset);
     }
 
-    public void saveBitmapToFile(Bitmap bitmap, String fileName) {
-        File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
-        File file = new File(path, fileName);
-
-        if (file.exists()) {
-            if (!IS_SAVE) {
-                file.delete();
-            } else {
-                return;
-            }
-        }
-
-        try {
-            path.mkdirs();
-            FileOutputStream outputStream = new FileOutputStream(file);
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
-            outputStream.flush();
-            outputStream.close();
-
-            MediaStore.Images.Media.insertImage(config.context.getContentResolver(), file.getAbsolutePath(), file.getName(), file.getName());
-
-            Log.i("saveBitmapToFile", "saveBitmapToFile: " + file.getAbsolutePath());
-            IS_SAVE = true;
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
     @Override
     public void draw(VertexArray vertexArray, float[] rawDrawable) {
         Integer textId = textTextureIds.get(rawDrawable);
@@ -496,32 +468,6 @@ public class TextSymbolizer extends Symbolizer {
         }
 
         return false;
-    }
-
-    private static float calculateAngleDelta(float[] prev, float[] curr, float[] next) {
-        float angle1 = (float) Math.atan2(prev[1] - curr[1], prev[0] - curr[0]);
-        float angle2 = (float) Math.atan2(next[1] - curr[1], next[0] - curr[0]);
-        return (float) Math.toDegrees(angle2 - angle1);
-    }
-
-    private static boolean checkSharpTurn(PathMeasure pathMeasure, float threshold) {
-        if (threshold <= 0) return false;
-
-        float[] pos = new float[2];
-        float[] tan = new float[2];
-
-        float prevAngle = 0;
-        boolean hasSharpTurn = false;
-        for (float distance = 0; distance < pathMeasure.getLength(); distance += 1) {
-            pathMeasure.getPosTan(distance, pos, tan);
-            float angle = (float) Math.atan2(tan[1], tan[0]) * 180 / (float) Math.PI;
-            if (Math.abs(angle - prevAngle) > threshold) {
-                hasSharpTurn = true;
-                break;
-            }
-            prevAngle = angle;
-        }
-        return hasSharpTurn;
     }
 
     private static boolean checkUpsideDown(PathMeasure pathMeasure, float pathLength) {

@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public class Way {
+public class Way extends Element {
     private Polygon polygon = null;
     public final ArrayList<Node> nodes;
     public final HashMap<String, String> tags = new HashMap<>();
