@@ -2,9 +2,11 @@ package com.hcmut.test.reader;
 
 import android.content.Context;
 
+import com.hcmut.test.algorithm.CoordinateTransform;
 import com.hcmut.test.osm.Node;
 import com.hcmut.test.osm.Way;
 
+import org.osgeo.proj4j.ProjCoordinate;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlPullParserFactory;
@@ -31,10 +33,12 @@ public class MapReader {
     }
 
     public void setBounds(float minlon, float maxlon, float minlat, float maxlat) {
-        this.minlon = minlon;
-        this.maxlon = maxlon;
-        this.minlat = minlat;
-        this.maxlat = maxlat;
+        ProjCoordinate projCoordinate = CoordinateTransform.wgs84ToWebMercator(minlat, minlon);
+        this.minlon = (float) projCoordinate.x;
+        this.minlat = (float) projCoordinate.y;
+        projCoordinate = CoordinateTransform.wgs84ToWebMercator(maxlat, maxlon);
+        this.maxlon = (float) projCoordinate.x;
+        this.maxlat = (float) projCoordinate.y;
     }
 
     public void read() {

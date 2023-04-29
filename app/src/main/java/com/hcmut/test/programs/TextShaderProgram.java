@@ -65,14 +65,6 @@ public class TextShaderProgram extends ShaderProgram {
         GLES20.glUniformMatrix4fv(uTransformMatrix, 1, false, transformMatrix, 0);
     }
 
-    public int getUniformLocation(String uniformName) {
-        return glGetUniformLocation(program, uniformName);
-    }
-
-    public int getAttributeLocation(String attributeName) {
-        return glGetAttribLocation(program, attributeName);
-    }
-
     @Override
     public List<VertexAttrib> getVertexAttribs() {
         return VERTEX_ATTRIB_LIST;

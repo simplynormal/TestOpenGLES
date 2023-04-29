@@ -13,7 +13,7 @@ import com.hcmut.test.geometry.PointList;
 import com.hcmut.test.geometry.Polygon;
 import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.geometry.Vector;
-import com.hcmut.test.osm.Way;
+import com.hcmut.test.osm.Element;
 import com.hcmut.test.programs.ColorShaderProgram;
 import com.hcmut.test.programs.ShaderProgram;
 import com.hcmut.test.utils.Config;
@@ -24,6 +24,40 @@ import java.util.List;
 
 // LineSymbolizer keys: [stroke-opacity, offset, stroke-linejoin, stroke-dasharray, stroke-width, stroke, clip, stroke-linecap]
 public class LineSymbolizer extends Symbolizer {
+    private static class LineSymMeta extends SymMeta {
+        private float[] drawable;
+        protected VertexArray vertexArray = null;
+
+        public LineSymMeta(float[] drawable) {
+            this.drawable = drawable;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return vertexArray == null && (drawable == null || drawable.length == 0);
+        }
+
+        @Override
+        public SymMeta append(SymMeta other) {
+            if (!(other instanceof LineSymMeta)) return this;
+            LineSymMeta otherLineSymMeta = (LineSymMeta) other;
+            float[] result = appendTriangleStrip(drawable, otherLineSymMeta.drawable, ColorShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
+            return new LineSymMeta(result);
+        }
+
+        private void draw(ShaderProgram shaderProgram) {
+            if (isEmpty()) return;
+            if (vertexArray == null) {
+                vertexArray = new VertexArray(shaderProgram, drawable);
+                drawable = null;
+            }
+            shaderProgram.useProgram();
+            vertexArray.setDataFromVertexData();
+            int pointCount = vertexArray.getVertexCount();
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, pointCount);
+        }
+    }
+
     private final float strokeWidth;
     private final float[] strokeColor;
     private final List<Float> strokeDashArray;
@@ -99,33 +133,7 @@ public class LineSymbolizer extends Symbolizer {
         return lengths;
     }
 
-//    private LineStrip convertToOffsetLineStrip(LineStrip lineStrip) {
-//        if (this.offset == 0) return lineStrip;
-//        float offset = this.offset * config.getLengthPerPixel();
-//
-//        List<Point> points = lineStrip.points;
-//        List<Point> offsetPoints = new ArrayList<>();
-//        Point oldOffsetP2 = null;
-//        for (int i = 0; i < points.size() - 1; i++) {
-//            Point p1 = points.get(i);
-//            Point p2 = points.get(i + 1);
-//            Vector v12 = new Vector(p1, p2);
-//            Vector v12Perp = v12.orthogonal2d();
-//            v12Perp = v12Perp.normalize().mul(offset);
-//            Point offsetP1 = p1.add(v12Perp);
-//            Point offsetP2 = p2.add(v12Perp);
-//            if (oldOffsetP2 != null) {
-//                Vector vOld = new Vector(p1, oldOffsetP2);
-//                Vector vNew = new Vector(p1, offsetP1);
-//            }
-//            oldOffsetP2 = offsetP2;
-//            offsetPoints.add(offsetP1);
-//        }
-//        offsetPoints.add(oldOffsetP2);
-//        return new LineStrip(offsetPoints);
-//    }
-
-    public LineStrip convertToOffsetLineStrip(LineStrip lineStrip) {
+    private LineStrip convertToOffsetLineStrip(LineStrip lineStrip) {
         return StrokeGenerator.offsetLineStrip(lineStrip, offset * config.getLengthPerPixel(), strokeLineJoin);
     }
 
@@ -188,7 +196,7 @@ public class LineSymbolizer extends Symbolizer {
     }
 
     @Override
-    public float[] toDrawable(Way way, PointList shape) {
+    public SymMeta toDrawable(Element element, PointList shape) {
         LineStrip lineStrip;
         if (!(shape instanceof LineStrip)) {
             lineStrip = new LineStrip(shape);
@@ -198,22 +206,22 @@ public class LineSymbolizer extends Symbolizer {
 
         lineStrip = convertToOffsetLineStrip(lineStrip);
 
-        float[] rv = new float[0];
+        SymMeta rv = new LineSymMeta(new float[0]);
 
         if (strokeDashArray != null) {
             List<LineStrip> dashedLineStrips = convertToDashedLineStrips(lineStrip, strokeDashArray);
             for (LineStrip dashedLineStrip : dashedLineStrips) {
-                rv = appendDrawable(rv, drawLineStrip(dashedLineStrip));
+                rv = rv.append(new LineSymMeta(drawLineStrip(dashedLineStrip)));
             }
             return rv;
         } else {
-            rv = drawLineStrip(lineStrip);
+            rv = new LineSymMeta(drawLineStrip(lineStrip));
         }
 
         if (shape instanceof Polygon) {
             Polygon polygon = (Polygon) shape;
             for (Polygon hole : polygon.holes) {
-                rv = appendDrawable(rv, drawLineStrip(new LineStrip(hole)));
+                rv = rv.append(new LineSymMeta(drawLineStrip(new LineStrip(hole))));
             }
         }
 
@@ -221,42 +229,10 @@ public class LineSymbolizer extends Symbolizer {
     }
 
     @Override
-    public void draw(VertexArray vertexArray) {
-        if (vertexArray == null) return;
-        config.colorShaderProgram.useProgram();
-        vertexArray.setDataFromVertexData();
-        int pointCount = vertexArray.getVertexCount();
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, pointCount);
-//        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, pointCount);
-    }
-
-    @Override
-    public float[] appendDrawable(float[] oldDrawable, float[] newDrawable) {
-        if (newDrawable.length == 0) return oldDrawable;
-
-        boolean oldDrawableEmpty = oldDrawable.length == 0;
-        float[] result = new float[oldDrawable.length + newDrawable.length + (oldDrawableEmpty ? 0 : ColorShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT * 2)];
-        System.arraycopy(oldDrawable, 0, result, 0, oldDrawable.length);
-        if (!oldDrawableEmpty) {
-            System.arraycopy(oldDrawable, oldDrawable.length - ColorShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT, result, oldDrawable.length, ColorShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
-            System.arraycopy(newDrawable, 0, result, oldDrawable.length + ColorShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT, ColorShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
-        }
-        System.arraycopy(newDrawable, 0, result, oldDrawable.length + (oldDrawableEmpty ? 0 : ColorShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT * 2), newDrawable.length);
-        return result;
-    }
-
-    @Override
-    public boolean isAppendable() {
-        return true;
-    }
-
-    @Override
-    public void draw(VertexArray vertexArray, float[] rawDrawable) {
-    }
-
-    @Override
-    public ShaderProgram getShaderProgram() {
-        return config.colorShaderProgram;
+    public void draw(SymMeta symMeta) {
+        if (!(symMeta instanceof LineSymMeta)) return;
+        LineSymMeta lineSymMeta = (LineSymMeta) symMeta;
+        lineSymMeta.draw(config.colorShaderProgram);
     }
 
     @NonNull

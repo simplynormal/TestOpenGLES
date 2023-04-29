@@ -26,6 +26,7 @@ import static android.opengl.GLES20.glGetShaderiv;
 import static android.opengl.GLES20.glLinkProgram;
 import static android.opengl.GLES20.glShaderSource;
 import static android.opengl.GLES20.glValidateProgram;
+
 import android.util.Log;
 
 public class ShaderHelper {
@@ -174,6 +175,12 @@ public class ShaderHelper {
         // Compile the shaders.
         int vertexShader = compileVertexShader(vertexShaderSource);
         int fragmentShader = compileFragmentShader(fragmentShaderSource);
+
+        if (vertexShader == 0 || fragmentShader == 0) {
+            throw new RuntimeException("Error creating program." +
+                    " Vertex shader: " + vertexShader +
+                    " Fragment shader: " + fragmentShader);
+        }
 
         // Link them into a shader program.
         program = linkProgram(vertexShader, fragmentShader);

@@ -1,17 +1,16 @@
 package com.hcmut.test.mapnik;
 
 import android.annotation.SuppressLint;
-import android.util.Pair;
 
 import androidx.annotation.NonNull;
 
 import com.hcmut.test.algorithm.CoordinateTransform;
-import com.hcmut.test.data.VertexArray;
 import com.hcmut.test.geometry.Point;
 import com.hcmut.test.geometry.PointList;
+import com.hcmut.test.mapnik.symbolizer.SymMeta;
 import com.hcmut.test.mapnik.symbolizer.Symbolizer;
-import com.hcmut.test.osm.Way;
-import com.hcmut.test.programs.ShaderProgram;
+import com.hcmut.test.osm.Element;
+import com.hcmut.test.osm.Node;
 import com.hcmut.test.utils.Config;
 
 import java.util.ArrayList;
@@ -26,13 +25,11 @@ import java.util.regex.Pattern;
 public class Rule {
     private Float maxScaleDenominator;
     private Float minScaleDenominator;
-    private Function<HashMap<String, String>, Boolean> filter = null;
-    private final HashMap<String, Way> ways = new HashMap<>();
-    private final List<HashMap<String, float[]>> vertexArrayRaw = new ArrayList<>();
-    private final HashMap<Symbolizer, VertexArray> appendables = new HashMap<>();
-    private final HashMap<Symbolizer, List<Pair<VertexArray, float[]>>> nonAppendables = new HashMap<>();
-    private List<VertexArray> vertexArrayList;
-    private final List<Symbolizer> symbolizers;
+    private Function<HashMap<String, String>, Boolean> filter;
+    private final HashMap<String, Element> elements = new HashMap<>();
+    private final List<HashMap<String, SymMeta>> symMetaMapLists = new ArrayList<>();
+    private final List<Symbolizer> symbolizers = new ArrayList<>();
+    private final List<SymMeta> drawingSymMetas = new ArrayList<>();
     private final Config config;
     //    private final Runnable unsubscribe;
     private String filterString;
@@ -43,7 +40,6 @@ public class Rule {
         this.minScaleDenominator = minScaleDenominator;
         this.filter = createFilterFunction(filter);
         this.filterString = filter;
-        this.symbolizers = new ArrayList<>();
 //        this.unsubscribe = config.addListener((Config _config, Set<Config.Property> diffs) -> {
 //            if (!diffs.contains(Config.Property.SCALE_DENOMINATOR)) return;
 //        });
@@ -68,9 +64,8 @@ public class Rule {
 
     public void addSymbolizer(Symbolizer symbolizer) {
         this.symbolizers.add(symbolizer);
-        this.vertexArrayRaw.add(new HashMap<>());
-        appendables.put(symbolizer, null);
-        nonAppendables.put(symbolizer, null);
+        this.symMetaMapLists.add(new HashMap<>());
+        this.drawingSymMetas.add(null);
     }
 
     public boolean compareScaleDenominator(float scaleDenominator) {
@@ -83,14 +78,18 @@ public class Rule {
         return true;
     }
 
-    public void validateWay(String key, Way way) {
+    public void validateElement(String key, Element element) {
 //        System.out.println("validateWay: " + key + " filter: " + filterString);
+        if (element instanceof Node || element.tags == null) {
+            return;
+        }
+
         float scaleDenominator = config.getScaleDenominator();
         if (!compareScaleDenominator(scaleDenominator)) {
             return;
         }
 
-        HashMap<String, String> tags = new HashMap<>(way.tags);
+        HashMap<String, String> tags = new HashMap<>(element.tags);
         String wayPixelsString = tags.get("way_pixels");
         float scaledPixel = CoordinateTransform.getScalePixel(scaleDenominator);
         if (wayPixelsString != null) {
@@ -101,20 +100,20 @@ public class Rule {
 
         boolean isMatched = this.filter == null || this.filter.apply(tags);
         if (isMatched) {
-            PointList shape = way.toPointList(config.getOriginX(), config.getOriginY(), scaledPixel * config.getLengthPerPixel());
-            acceptWay(key, way, shape);
+            List<PointList> shapes = element.toPointLists(config.getOriginX(), config.getOriginY(), scaledPixel * config.getLengthPerPixel());
+            acceptElement(key, element, shapes);
         }
     }
 
-    public void removeWay(String key) {
-        ways.remove(key);
-        for (HashMap<String, float[]> vertexArrayRaw : this.vertexArrayRaw) {
+    public void removeElement(String key) {
+        elements.remove(key);
+        for (HashMap<String, SymMeta> vertexArrayRaw : this.symMetaMapLists) {
             vertexArrayRaw.remove(key);
         }
     }
 
-    private void acceptWay(String key, Way way, PointList shape) {
-        ways.put(key, way);
+    private void acceptElement(String key, Element element, List<PointList> shapes) {
+        elements.put(key, element);
 
 //        if (!symbolizers.isEmpty()) {
 //            System.out.println("Way accepted: " + key);
@@ -122,98 +121,44 @@ public class Rule {
 
         for (int i = 0; i < symbolizers.size(); i++) {
             Symbolizer symbolizer = symbolizers.get(i);
-            HashMap<String, float[]> vertexArrayRaw = this.vertexArrayRaw.get(i);
-            try {
-                vertexArrayRaw.put(key, symbolizer.toDrawable(way, shape));
-            } catch (Exception e) {
-                vertexArrayRaw.put(key, new float[0]);
-                e.printStackTrace();
-                System.err.println("Error drawing way " + key);
-                for (Point point : shape.points) {
-                    System.err.println(point.x + "f, " + point.y + "f, " + point.z + "f,");
+            HashMap<String, SymMeta> symMetaMap = this.symMetaMapLists.get(i);
+            for (PointList shape : shapes) {
+                try {
+                    symMetaMap.put(key, symbolizer.toDrawable(element, shape));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    System.err.println("Error drawing way " + key);
+                    for (Point point : shape.points) {
+                        System.err.println(point.x + "f, " + point.y + "f, " + point.z + "f,");
+                    }
                 }
             }
         }
     }
 
-//    public void wrapUpWays() {
-////        System.out.println("wrapUpWays");
-//        vertexArrayList = new ArrayList<>();
-//        for (int i = 0; i < symbolizers.size(); i++) {
-//            Symbolizer symbolizer = symbolizers.get(i);
-//            HashMap<String, float[]> vertexArrayRaw = this.vertexArrayRaw.get(i);
-//            float[] raw = new float[0];
-//            for (float[] vertexArrayRawValue : vertexArrayRaw.values()) {
-//                raw = symbolizer.appendDrawable(raw, vertexArrayRawValue);
-//            }
-//
-//            if (raw.length > 0) {
-//                vertexArrayList.add(new VertexArray(config.colorShaderProgram, raw));
-//            } else {
-//                vertexArrayList.add(null);
-//            }
-//        }
-//    }
-
-    public void wrapUpWays() {
+    public void save() {
         for (int i = 0; i < symbolizers.size(); i++) {
-            Symbolizer symbolizer = symbolizers.get(i);
-            ShaderProgram shaderProgram = symbolizer.getShaderProgram();
-            HashMap<String, float[]> vertexArrayRaw = this.vertexArrayRaw.get(i);
-            if (symbolizer.isAppendable()) {
-                float[] raw = new float[0];
-                for (float[] vertexArrayRawValue : vertexArrayRaw.values()) {
-                    raw = symbolizer.appendDrawable(raw, vertexArrayRawValue);
-                }
-
-                if (raw.length > 0) {
-                    VertexArray va = new VertexArray(shaderProgram, raw);
-                    appendables.put(symbolizer, va);
+            HashMap<String, SymMeta> symMetaMap = this.symMetaMapLists.get(i);
+            drawingSymMetas.set(i, null);
+            for (SymMeta symMeta : symMetaMap.values()) {
+                SymMeta currentSymMeta = drawingSymMetas.get(i);
+                if (currentSymMeta == null) {
+                    drawingSymMetas.set(i, symMeta);
                 } else {
-                    appendables.put(symbolizer, null);
-                }
-            } else {
-                nonAppendables.put(symbolizer, new ArrayList<>());
-                for (float[] vertexArrayRawValue : vertexArrayRaw.values()) {
-                    List<Pair<VertexArray, float[]>> list = nonAppendables.get(symbolizer);
-                    assert list != null;
-                    VertexArray va = new VertexArray(shaderProgram, vertexArrayRawValue);
-                    list.add(new Pair<>(va, vertexArrayRawValue));
+                    drawingSymMetas.set(i, currentSymMeta.append(symMeta));
                 }
             }
         }
     }
-
-//    public void draw() {
-//        if (vertexArrayList == null || vertexArrayList.isEmpty()) return;
-//
-////        System.out.println("draw rule");
-//
-////        boolean nonNullAll = vertexArrayList.stream().anyMatch(Objects::nonNull);
-////        if (!nonNullAll) return;
-//
-//        for (int i = 0; i < symbolizers.size(); i++) {
-//            Symbolizer symbolizer = symbolizers.get(i);
-//            VertexArray vertexArray = this.vertexArrayList.get(i);
-//            symbolizer.draw(vertexArray);
-//        }
-//    }
 
     public void draw() {
-        if (appendables.isEmpty() || nonAppendables.isEmpty()) return;
+        if (drawingSymMetas.isEmpty()) return;
 
-        for (Symbolizer symbolizer : appendables.keySet()) {
-            VertexArray vertexArray = appendables.get(symbolizer);
-            if (vertexArray != null) {
-                symbolizer.draw(vertexArray);
-            }
-        }
-
-        for (Symbolizer symbolizer : nonAppendables.keySet()) {
-            List<Pair<VertexArray, float[]>> list = nonAppendables.get(symbolizer);
-            if (list == null) continue;
-            for (Pair<VertexArray, float[]> raw : list) {
-                symbolizer.draw(raw.first, raw.second);
+        for (int i = 0; i < symbolizers.size(); i++) {
+            Symbolizer symbolizer = symbolizers.get(i);
+            SymMeta symMeta = drawingSymMetas.get(i);
+            if (symMeta != null) {
+                symbolizer.draw(symMeta);
             }
         }
     }
@@ -239,7 +184,7 @@ public class Rule {
 
         // Return a function that checks if the input HashMap satisfies the filter
         return (HashMap<String, String> tags) -> {
-            if (keys.size() != operators.size() || keys.size() != values.size()) {
+            if (tags == null || keys.size() != operators.size() || keys.size() != values.size()) {
                 return false;
             }
 

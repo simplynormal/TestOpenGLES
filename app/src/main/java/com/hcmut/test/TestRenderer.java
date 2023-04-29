@@ -8,6 +8,7 @@ import android.opengl.Matrix;
 
 import com.hcmut.test.algorithm.CoordinateTransform;
 import com.hcmut.test.algorithm.StrokeGenerator;
+import com.hcmut.test.data.Framebuffer;
 import com.hcmut.test.data.VertexArray;
 import com.hcmut.test.geometry.LineStrip;
 import com.hcmut.test.geometry.Point;
@@ -18,7 +19,10 @@ import com.hcmut.test.geometry.Vector;
 import com.hcmut.test.mapnik.Layer;
 import com.hcmut.test.mapnik.symbolizer.LineSymbolizer;
 import com.hcmut.test.mapnik.StyleParser;
+import com.hcmut.test.mapnik.symbolizer.SymMeta;
 import com.hcmut.test.mapnik.symbolizer.TextSymbolizer;
+import com.hcmut.test.object.FullScreenQuad;
+import com.hcmut.test.programs.DownsampleShaderProgram;
 import com.hcmut.test.reader.MapReader;
 import com.hcmut.test.object.ObjectBuilder;
 import com.hcmut.test.osm.Way;
@@ -40,10 +44,13 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     private final Context context;
     private ColorShaderProgram colorProgram;
     private TextShaderProgram textProgram;
+    private DownsampleShaderProgram downsampleProgram;
     private ObjectBuilder builder;
     private MapReader mapReader;
     private StyleParser styleParser;
     private Config config;
+    private Framebuffer mFramebuffer;
+    private FullScreenQuad mFullScreenQuad;
     private final float[] vertices = {
             -1.0f, -1.0f, 0.0f,
             1.0f, -1.0f, 0.0f,
@@ -89,6 +96,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         int width = context.getResources().getDisplayMetrics().widthPixels;
         int height = context.getResources().getDisplayMetrics().heightPixels;
         config.setWidthHeight(width, height);
+        downsampleProgram = new DownsampleShaderProgram(config);
 
         float minLon = 106.73603f;
         float maxLon = 106.74072f;
@@ -109,14 +117,14 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         originY = (minLat + maxLat) / 2;
         scale = 583.1902f;
         config.setOriginFromWGS84(originX, originY);
-        config.setScaleDenominator(1000);
+        config.setScaleDenominator(2000);
 
         try {
             mapReader = new MapReader(context, R.raw.map1);
-//            mapReader.setBounds(minLon, maxLon, minLat, maxLat);
-//            mapReader.read();
-            styleParser = new StyleParser(context, R.raw.mapnik, config);
-//            styleParser.read();
+            mapReader.setBounds(minLon, maxLon, minLat, maxLat);
+            mapReader.read();
+            styleParser = new StyleParser(config, R.raw.mapnik);
+            styleParser.read();
         } catch (XmlPullParserException e) {
             throw new RuntimeException(e);
         }
@@ -124,12 +132,22 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         styleParser.validateWays(mapReader.ways);
     }
 
+    void checkAntiAliasing() {
+//        String extensions = GLES20.glGetString(GLES20.GL_EXTENSIONS);
+//        System.out.println("extensions: " + extensions);
+    }
+
     @Override
     public void onSurfaceCreated(GL10 glUnused, EGLConfig config) {
         GLES20.glClearColor(0.95f, 0.94f, 0.91f, 1f);
+        GLES20.glEnable(GLES20.GL_SAMPLE_ALPHA_TO_COVERAGE);
+//        GLES20.glEnable(GLES20.GL_SAMPLE_COVERAGE);
+        GLES20.glSampleCoverage(1, false);
         GLES20.glEnable(GLES20.GL_BLEND);
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+
         initOpenGL();
+        checkAntiAliasing();
 
 //        for (String key : mapReader.ways.keySet()) {
 //            Way way = mapReader.ways.get(key);
@@ -354,6 +372,9 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
 //        Matrix.orthoM(projectionMatrix, 0, -1f, 1f, -aspectRatio, aspectRatio, -1f, 1f);
 //        Matrix.setIdentityM(modelViewMatrix, 0);
+
+        mFramebuffer = new Framebuffer(width, height);
+        mFullScreenQuad = new FullScreenQuad(downsampleProgram);
     }
 
     public void testClosedShape() {
@@ -431,27 +452,23 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         List<Point> points = Point.toPoints(chosenVertices);
         PointList pointList = new PointList(points);
 
-        float[] drawables = lineSymbolizer.toDrawable(null, pointList);
-        VertexArray vertexArray = new VertexArray(colorProgram, drawables);
-        config.colorShaderProgram.useProgram();
-        vertexArray.setDataFromVertexData();
-        int pointCount = vertexArray.getVertexCount();
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, pointCount);
+        SymMeta drawables = lineSymbolizer.toDrawable(null, pointList);
+        lineSymbolizer.draw(drawables);
 
-        if (!drawPoints) {
-            return;
-        }
-
-        for (int i = 0; i < drawables.length; i += 7) {
-            drawables[i + 3] = 0;
-            drawables[i + 4] = 0;
-            drawables[i + 5] = 0;
-        }
-        vertexArray = new VertexArray(colorProgram, drawables);
-        config.colorShaderProgram.useProgram();
-        vertexArray.setDataFromVertexData();
-        pointCount = vertexArray.getVertexCount();
-        GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, pointCount);
+//        if (!drawPoints) {
+//            return;
+//        }
+//
+//        for (int i = 0; i < drawables.length; i += 7) {
+//            drawables[i + 3] = 0;
+//            drawables[i + 4] = 0;
+//            drawables[i + 5] = 0;
+//        }
+//        vertexArray = new VertexArray(colorProgram, drawables);
+//        config.colorShaderProgram.useProgram();
+//        vertexArray.setDataFromVertexData();
+//        pointCount = vertexArray.getVertexCount();
+//        GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, pointCount);
     }
 
     void testLineSymbolizer() {
@@ -531,19 +548,19 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         );
 
         drawLineSymbolizer(chosenVertices, lineSymbolizer, true);
-        drawLineSymbolizer(chosenVertices2, lineSymbolizer2, true);
+//        drawLineSymbolizer(chosenVertices2, lineSymbolizer2, true);
 //        drawLineSymbolizer(chosenVertices3, lineSymbolizer3, true);
 //        drawLineSymbolizer(chosenVertices4, lineSymbolizer4, false);
     }
 
+    //
     void drawTextSymbolizer(float[] chosenVertices, TextSymbolizer textSymbolizer, boolean drawPoints) {
         List<Point> points = Point.toPoints(chosenVertices);
         PointList pointList = new PointList(points);
         Way way = new Way();
         way.tags.put("daw", "replaced");
-        float[] drawables = textSymbolizer.toDrawable(way, pointList);
-        VertexArray vertexArray = new VertexArray(textProgram, drawables);
-        textSymbolizer.draw(vertexArray, drawables);
+        SymMeta drawables = textSymbolizer.toDrawable(way, pointList);
+        textSymbolizer.draw(drawables);
     }
 
     void testTextSymbolizer() {
@@ -566,7 +583,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
                 "0",
                 "0",
                 "0",
-                "0",
+                "70",
                 null,
                 null,
                 "line",
@@ -575,8 +592,8 @@ public class TestRenderer implements GLSurfaceView.Renderer {
                 null,
                 null,
                 "15",
-                "#ffffff",
-                "1"
+                "#00ff00",
+                "0"
         );
 
         LineSymbolizer lineSymbolizer = new LineSymbolizer(
@@ -596,6 +613,8 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
     @Override
     public void onDrawFrame(GL10 glUnused) {
+        mFramebuffer.bind();
+        GLES20.glViewport(0, 0, mFramebuffer.getWidth(), mFramebuffer.getHeight()); // Set the viewport to the offscreen framebuffer size
 //        GLES20.glEnable(GLES20.GL_DEPTH_TEST);
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_STENCIL_BUFFER_BIT);
 
@@ -604,9 +623,15 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 //        testText();
 //        testClosedShape();
 //        testLineSymbolizer();
-        testTextSymbolizer();
-//        for (Layer layer : styleParser.layers) {
-//            layer.draw();
-//        }
+//        testTextSymbolizer();
+        for (Layer layer : styleParser.layers) {
+            layer.draw();
+        }
+
+        // Bind the default framebuffer and render the full-screen quad
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+        GLES20.glViewport(0, 0, config.getWidth(), config.getHeight()); // Set the viewport back to the screen size
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+        mFullScreenQuad.draw(mFramebuffer.getTextureId());
     }
 }

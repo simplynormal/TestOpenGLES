@@ -2,30 +2,19 @@ package com.hcmut.test.osm;
 
 import androidx.annotation.NonNull;
 
-import com.hcmut.test.algorithm.CoordinateTransform;
 import com.hcmut.test.geometry.Point;
 import com.hcmut.test.geometry.PointList;
 import com.hcmut.test.geometry.Polygon;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 
 public class Way extends Element {
     private Polygon polygon = null;
     public final ArrayList<Node> nodes;
-    public final HashMap<String, String> tags = new HashMap<>();
 
     public Way() {
         nodes = new ArrayList<>();
-    }
-
-    public Way(ArrayList<Node> nodes) {
-        this.nodes = new ArrayList<>();
-        for (Node node : nodes) {
-            Node n = CoordinateTransform.wgs84ToWebMercator(node);
-            nodes.add(n);
-        }
     }
 
     public Way(float[] vertices) {
@@ -36,7 +25,7 @@ public class Way extends Element {
     }
 
     public void addNode(Node node) {
-        nodes.add(CoordinateTransform.wgs84ToWebMercator(node));
+        nodes.add(node);
     }
 
     public void wrapUpNodes() {
@@ -72,6 +61,22 @@ public class Way extends Element {
         return points;
     }
 
+    public List<Point> toPoints(float originX, float originY, float scale) {
+        List<Point> points = new ArrayList<>();
+        for (Node node : nodes) {
+            points.add(node.toPoint(originX, originY, scale));
+        }
+        return points;
+    }
+
+    public List<Point> toPoints(float originX, float originY, float scale, float z) {
+        List<Point> points = new ArrayList<>();
+        for (Node node : nodes) {
+            points.add(new Point((node.lon - originX) * scale, (node.lat - originY) * scale, z));
+        }
+        return points;
+    }
+
     public PointList toPointList(float scale) {
         if (polygon != null) return polygon.scale(scale);
         List<Point> points = new ArrayList<>();
@@ -90,20 +95,21 @@ public class Way extends Element {
         return new PointList(points);
     }
 
-    public List<Point> toPoints(float originX, float originY, float scale) {
-        List<Point> points = new ArrayList<>();
-        for (Node node : nodes) {
-            points.add(node.toPoint(originX, originY, scale));
-        }
-        return points;
+    @Override
+    public List<PointList> toPointLists() {
+        return toPointLists(0, 0, 1);
     }
 
-    public List<Point> toPoints(float originX, float originY, float scale, float z) {
-        List<Point> points = new ArrayList<>();
-        for (Node node : nodes) {
-            points.add(new Point((node.lon - originX) * scale, (node.lat - originY) * scale, z));
-        }
-        return points;
+    @Override
+    public List<PointList> toPointLists(float scale) {
+        return toPointLists(0, 0, scale);
+    }
+
+    @Override
+    public List<PointList> toPointLists(float originX, float originY, float scale) {
+        List<PointList> pointLists = new ArrayList<>(1);
+        pointLists.add(toPointList(originX, originY, scale));
+        return pointLists;
     }
 
     @NonNull

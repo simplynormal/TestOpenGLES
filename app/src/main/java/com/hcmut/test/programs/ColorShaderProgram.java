@@ -28,7 +28,6 @@ public class ColorShaderProgram extends ShaderProgram {
     public static final String U_PROJECTION_MATRIX = "u_ProjectionMatrix";
     public static final String U_MODEL_VIEW_MATRIX = "u_ModelViewMatrix";
     public static final String U_TRANSFORM_MATRIX = "u_TransformMatrix";
-    public static final String U_COLOR = "u_Color";
     public static final String A_POSITION = "a_Position";
     public static final String A_COLOR = "a_Color";
     private static final int[] VERTEX_ATTRIBS = new int[]{

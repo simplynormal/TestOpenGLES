@@ -30,11 +30,13 @@ import java.util.Random;
 
 public class VertexArray {
     protected static final int BYTES_PER_FLOAT = 4;
+    protected static final int BYTES_PER_SHORT = 2;
     protected static final int seed = 69;
     protected static Random random = new Random(seed);
     protected final ShaderProgram shaderProgram;
     protected int vertexCount;
     protected int id = -1;
+    public final List<Integer> idxIds = new ArrayList<>(0);
 
     public static void resetRandom() {
         random = new Random(seed);
@@ -131,9 +133,11 @@ public class VertexArray {
         return result;
     }
 
-    protected void finalize() {
+    @Override
+    protected void finalize() throws Throwable {
         if (id != -1) {
             GLES20.glDeleteBuffers(1, new int[]{id}, 0);
         }
+        super.finalize();
     }
 }

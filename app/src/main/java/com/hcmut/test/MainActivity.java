@@ -9,7 +9,6 @@ import android.opengl.GLSurfaceView;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MotionEvent;
-import android.view.View;
 import android.view.Window;
 
 import androidx.annotation.NonNull;
@@ -28,10 +27,10 @@ final class MultisampleConfigChooser implements GLSurfaceView.EGLConfigChooser {
     private static final int EGL_COVERAGE_BUFFERS_NV = 0x30E0;
     private static final int EGL_COVERAGE_SAMPLES_NV = 0x30E1;
 
-    private static final int RED = 5;
-    private static final int GREEN = 6;
-    private static final int BLUE = 5;
-    private static final int ALPHA = 0;
+    private static final int RED = 8;
+    private static final int GREEN = 8;
+    private static final int BLUE = 8;
+    private static final int ALPHA = 8;
     private static final int STENCIL = 8;
     private static final int DEPTH = 16;
 

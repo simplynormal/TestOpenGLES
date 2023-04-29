@@ -20,24 +20,22 @@ import java.util.HashMap;
 import java.util.List;
 
 public class StyleParser {
-    private final Context ctx;
     private final int resource;
     private final Config config;
     private final XmlPullParser xpp;
     public final List<Layer> layers = new ArrayList<>();
 
-    public StyleParser(Context ctx, int resource, Config config) throws XmlPullParserException {
+    public StyleParser(Config config, int resource) throws XmlPullParserException {
         XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
         factory.setNamespaceAware(true);
         xpp = factory.newPullParser();
-        this.ctx = ctx;
         this.resource = resource;
         this.config = config;
     }
 
     public void read() {
         try {
-            InputStream in_s = ctx.getResources().openRawResource(resource);
+            InputStream in_s = config.context.getResources().openRawResource(resource);
             xpp.setInput(in_s, null);
 
             int eventType = xpp.getEventType();

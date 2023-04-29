@@ -2,29 +2,24 @@ package com.hcmut.test.mapnik.symbolizer;
 
 import androidx.annotation.NonNull;
 
-import com.hcmut.test.data.VertexArray;
 import com.hcmut.test.geometry.PointList;
-import com.hcmut.test.osm.Way;
-import com.hcmut.test.programs.ShaderProgram;
+import com.hcmut.test.osm.Element;
 import com.hcmut.test.utils.Config;
-
-import java.util.List;
 
 public abstract class Symbolizer {
     protected Config config;
-    abstract public float[] toDrawable(Way way, PointList shape);
-    abstract public boolean isAppendable();
-    abstract public float[] appendDrawable(float[] oldDrawable, float[] newDrawable);
-    abstract public void draw(VertexArray vertexArray, float[] rawDrawable);
-    abstract public void draw(VertexArray vertexArray);
-    abstract public ShaderProgram getShaderProgram();
+
+    abstract public SymMeta toDrawable(Element element, PointList shape);
+
+    //    abstract public SymMeta appendDrawable(SymMeta oldDrawable, SymMeta newDrawable);
+    abstract public void draw(SymMeta symMeta);
 
     protected Symbolizer(Config config) {
         this.config = config;
     }
 
     protected static float[] parseColorString(String colorString, float optionalOpacity) {
-        if (colorString == null) return new float[] {0, 0, 0, optionalOpacity};
+        if (colorString == null) return new float[]{0, 0, 0, optionalOpacity};
 
         if (colorString.startsWith("rgba")) {
             return parseColorRGBA(colorString);

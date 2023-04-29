@@ -15,13 +15,13 @@ public class Style {
 
     public void validateWay(String key, Way way) {
         for (Rule rule : rules) {
-            rule.validateWay(key, way);
+            rule.validateElement(key, way);
         }
     }
 
     public void wrapUpWays() {
         for (Rule rule : rules) {
-            rule.wrapUpWays();
+            rule.save();
         }
     }
 

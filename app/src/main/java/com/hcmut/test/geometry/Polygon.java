@@ -44,7 +44,7 @@ public class Polygon extends PointList {
 
     private void checkInit() {
         assert points.size() > 3 : "Polygon must have at least 3 points";
-        assert isClosed() : "Polygon must be closed";
+        assert isClosed() : "Polygon must be closed: " + points.get(0) + " != " + points.get(points.size() - 1);
 
         for (int i = 0; i < points.size() - 1; i++) {
             if (points.get(i).equals(points.get(i + 1))) {

@@ -8,7 +8,7 @@ import com.hcmut.test.data.VertexArray;
 import com.hcmut.test.geometry.PointList;
 import com.hcmut.test.geometry.Polygon;
 import com.hcmut.test.geometry.Triangle;
-import com.hcmut.test.osm.Way;
+import com.hcmut.test.osm.Element;
 import com.hcmut.test.programs.ColorShaderProgram;
 import com.hcmut.test.programs.ShaderProgram;
 import com.hcmut.test.utils.Config;
@@ -19,6 +19,40 @@ import java.util.List;
 
 // PolygonSymbolizer keys: [fill, fill-opacity, gamma, clip]
 public class PolygonSymbolizer extends Symbolizer {
+    private static class PolygonSymMeta extends SymMeta {
+        private float[] drawable;
+        protected VertexArray vertexArray = null;
+
+        public PolygonSymMeta(float[] drawable) {
+            this.drawable = drawable;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return vertexArray == null && (drawable == null || drawable.length == 0);
+        }
+
+        @Override
+        public SymMeta append(SymMeta other) {
+            if (!(other instanceof PolygonSymMeta)) return this;
+            PolygonSymMeta otherLineSymMeta = (PolygonSymMeta) other;
+            float[] result = appendRegular(drawable, otherLineSymMeta.drawable);
+            return new PolygonSymMeta(result);
+        }
+
+        private void draw(ShaderProgram shaderProgram) {
+            if (isEmpty()) return;
+            if (vertexArray == null) {
+                vertexArray = new VertexArray(shaderProgram, drawable);
+                drawable = null;
+            }
+            shaderProgram.useProgram();
+            vertexArray.setDataFromVertexData();
+            int pointCount = vertexArray.getVertexCount();
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, pointCount);
+        }
+    }
+
     private final float[] fillColor;
 
     public PolygonSymbolizer(Config config, String fill, String fillOpacity) {
@@ -27,8 +61,8 @@ public class PolygonSymbolizer extends Symbolizer {
     }
 
     @Override
-    public float[] toDrawable(Way way, PointList shape) {
-        if (!shape.isClosed()) return new float[0];
+    public SymMeta toDrawable(Element element, PointList shape) {
+        if (!shape.isClosed()) return new PolygonSymMeta(new float[0]);
 
         Polygon polygon;
         if (!(shape instanceof Polygon)) {
@@ -38,7 +72,7 @@ public class PolygonSymbolizer extends Symbolizer {
         }
         List<Triangle> curTriangulatedTriangles = polygon.triangulate();
 
-        return ColorShaderProgram.toVertexData(new ArrayList<>() {
+        return new PolygonSymMeta(ColorShaderProgram.toVertexData(new ArrayList<>() {
             {
                 for (Triangle triangle : curTriangulatedTriangles) {
                     add(triangle.p1);
@@ -46,37 +80,14 @@ public class PolygonSymbolizer extends Symbolizer {
                     add(triangle.p3);
                 }
             }
-        }, fillColor);
+        }, fillColor));
     }
 
     @Override
-    public void draw(VertexArray vertexArray) {
-        if (vertexArray == null) return;
-        vertexArray.setDataFromVertexData();
-        int pointCount = vertexArray.getVertexCount();
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, pointCount);
-    }
-
-    @Override
-    public float[] appendDrawable(float[] oldDrawable, float[] newDrawable) {
-        float[] result = new float[oldDrawable.length + newDrawable.length];
-        System.arraycopy(oldDrawable, 0, result, 0, oldDrawable.length);
-        System.arraycopy(newDrawable, 0, result, oldDrawable.length, newDrawable.length);
-        return result;
-    }
-
-    @Override
-    public boolean isAppendable() {
-        return true;
-    }
-
-    @Override
-    public void draw(VertexArray vertexArray, float[] rawDrawable) {
-    }
-
-    @Override
-    public ShaderProgram getShaderProgram() {
-        return config.colorShaderProgram;
+    public void draw(SymMeta symMeta) {
+        if (!(symMeta instanceof PolygonSymMeta)) return;
+        PolygonSymMeta polygonSymMeta = (PolygonSymMeta) symMeta;
+        polygonSymMeta.draw(config.colorShaderProgram);
     }
 
     @NonNull

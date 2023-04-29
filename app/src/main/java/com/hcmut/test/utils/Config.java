@@ -8,6 +8,8 @@ import com.hcmut.test.osm.Node;
 import com.hcmut.test.programs.ColorShaderProgram;
 import com.hcmut.test.programs.TextShaderProgram;
 
+import org.osgeo.proj4j.ProjCoordinate;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -77,8 +79,8 @@ public class Config {
     }
 
     public void setOriginFromWGS84(float originX, float originY) {
-        Node origin = new Node(originX, originY);
-        Node transformedOrigin = CoordinateTransform.wgs84ToWebMercator(origin);
+        ProjCoordinate origin = CoordinateTransform.wgs84ToWebMercator(originY, originX);
+        Node transformedOrigin = new Node((float) origin.x, (float) origin.y, true);
         this.originX = transformedOrigin.lon;
         this.originY = transformedOrigin.lat;
         notifyListeners(Set.of(Property.ORIGIN_X, Property.ORIGIN_Y));
