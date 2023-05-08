@@ -14,13 +14,6 @@ public class LineStrip extends PointList {
     public LineStrip(PointList points) {
         this(points.points);
     }
-    public LineStrip(Point[] points) {
-        this(List.of(points));
-    }
-
-    public LineStrip(Way way) {
-        this(way.toPoints());
-    }
 
     public LineStrip(float[] points) {
         this(new ArrayList<>() {

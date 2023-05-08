@@ -6,7 +6,11 @@ import android.util.Log;
 import com.hcmut.test.mapnik.symbolizer.LineSymbolizer;
 import com.hcmut.test.mapnik.symbolizer.PolygonSymbolizer;
 import com.hcmut.test.mapnik.symbolizer.TextSymbolizer;
+import com.hcmut.test.osm.Node;
 import com.hcmut.test.osm.Way;
+import com.hcmut.test.remote.LayerResponse;
+import com.hcmut.test.remote.NodeResponse;
+import com.hcmut.test.remote.WayResponse;
 import com.hcmut.test.utils.Config;
 
 import org.xmlpull.v1.XmlPullParser;
@@ -23,7 +27,7 @@ public class StyleParser {
     private final int resource;
     private final Config config;
     private final XmlPullParser xpp;
-    public final List<Layer> layers = new ArrayList<>();
+    public final List<Layer> layers = new ArrayList<>(78);
 
     public StyleParser(Config config, int resource) throws XmlPullParserException {
         XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
@@ -39,7 +43,7 @@ public class StyleParser {
             xpp.setInput(in_s, null);
 
             int eventType = xpp.getEventType();
-            List<Style> styles = new ArrayList<>();
+            HashMap<String, Style> stylesMap = new HashMap<>();
             Layer layerParent = null;
             Style styleParent = null;
             Rule ruleParent = null;
@@ -52,18 +56,11 @@ public class StyleParser {
                             srs = xpp.getAttributeValue(null, "srs");
                             break;
                         case "Layer":
-                            layerParent = new Layer();
+                            layerParent = new Layer(xpp.getAttributeValue(null, "name"));
                             break;
                         case "StyleName":
                             assert layerParent != null;
                             layerParent.addStyleName(xpp.nextText());
-                            break;
-                        case "Parameter":
-                            String paramName = xpp.getAttributeValue(null, "name");
-                            if (paramName.equals("table")) {
-                                assert layerParent != null;
-                                layerParent.setQuery(xpp.nextText());
-                            }
                             break;
                         case "Style":
                             styleParent = new Style(xpp.getAttributeValue(null, "name"));
@@ -128,12 +125,14 @@ public class StyleParser {
                              * horizontalAlignment
                              * justifyAlignment
                              * wrapWidth
+                             * fontsetName
                              * size
                              * haloFill
                              * haloRadius
                              * */
                             String dx = xpp.getAttributeValue(null, "dx");
                             String dy = xpp.getAttributeValue(null, "dy");
+                            String margin = xpp.getAttributeValue(null, "margin");
                             String spacing = xpp.getAttributeValue(null, "spacing");
                             String repeatDistance = xpp.getAttributeValue(null, "repeatDistance");
                             String maxCharAngleDelta = xpp.getAttributeValue(null, "maxCharAngleDelta");
@@ -144,6 +143,7 @@ public class StyleParser {
                             String horizontalAlignment = xpp.getAttributeValue(null, "horizontalAlignment");
                             String justifyAlignment = xpp.getAttributeValue(null, "justifyAlignment");
                             String wrapWidth = xpp.getAttributeValue(null, "wrapWidth");
+                            String fontsetName = xpp.getAttributeValue(null, "fontsetName");
                             String size = xpp.getAttributeValue(null, "size");
                             String haloFill = xpp.getAttributeValue(null, "haloFill");
                             String haloRadius = xpp.getAttributeValue(null, "haloRadius");
@@ -153,6 +153,7 @@ public class StyleParser {
                                     textExpr,
                                     dx,
                                     dy,
+                                    margin,
                                     spacing,
                                     repeatDistance,
                                     maxCharAngleDelta,
@@ -163,6 +164,7 @@ public class StyleParser {
                                     horizontalAlignment,
                                     justifyAlignment,
                                     wrapWidth,
+                                    fontsetName,
                                     size,
                                     haloFill,
                                     haloRadius
@@ -180,12 +182,12 @@ public class StyleParser {
                             break;
                         case "Style":
                             assert styleParent != null;
-                            styles.add(0, styleParent);
+                            stylesMap.put(styleParent.name, styleParent);
                             styleParent = null;
                             break;
                         case "Layer":
                             assert layerParent != null;
-                            layerParent.validateStyles(styles);
+                            layerParent.validateStyles(stylesMap);
                             layers.add(layerParent);
                             layerParent = null;
                             break;
@@ -196,25 +198,5 @@ public class StyleParser {
         } catch (XmlPullParserException | IOException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    public void validateWays(HashMap<String, Way> ways) {
-        Log.v("StyleParser", "validating ways: " + ways.size());
-        for (Layer layer : layers) {
-            layer.validateWays(ways);
-        }
-
-        Log.v("StyleParser", "ways validated");
-    }
-
-    public static void test(Context ctx, int resource) {
-//        System.out.println("==========test==========");
-//        try {
-//            StyleParser styleReader = new StyleParser(ctx, resource, new Config(null, null));
-//            styleReader.read();
-//            System.out.println("========Rules: " + styleReader.rules.size());
-//        } catch (XmlPullParserException e) {
-//            e.printStackTrace();
-//        }
     }
 }

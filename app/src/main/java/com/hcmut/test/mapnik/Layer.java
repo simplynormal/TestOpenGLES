@@ -1,69 +1,44 @@
 package com.hcmut.test.mapnik;
 
+import android.annotation.SuppressLint;
+
 import com.hcmut.test.osm.Way;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+@SuppressLint("NewApi")
 public class Layer {
-    private String query;
+    public final String name;
     private final List<String> stylesNames = new ArrayList<>();
     private final List<Style> styles = new ArrayList<>();
-    private HashMap<String, Way> ways;
 
-    public void setQuery(String query) {
-        this.query = query;
+    public Layer(String name) {
+        this.name = name;
     }
 
     public void addStyleName(String name) {
         stylesNames.add(name);
     }
 
-    public void validateStyles(List<Style> styles) {
+    public void validateStyles(HashMap<String, Style> stylesMap) {
         for (String name : stylesNames) {
-            for (Style style : styles) {
-                if (style.name.equals(name)) {
-                    this.styles.add(style);
-                    break;
-                }
-            }
+            Style style = stylesMap.get(name);
+            assert style != null : "Style " + name + " not found";
+            styles.add(style);
         }
     }
 
-    public boolean validateWay(Way way) {
-        if (way == null) return false;
-        for (String tagKey : way.tags.keySet()) {
-            String tagValue = way.tags.get(tagKey);
-            if (query.contains(tagKey) || (tagValue != null && query.contains(tagValue))) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-//    public boolean validateWay(Way way) {
-//        if (way == null) return false;
-//        for (String tagKey : way.tags.keySet()) {
-//            String tagValue = way.tags.get(tagKey);
-//            if (!(query.contains(tagKey) || (tagValue != null && query.contains(tagValue)))) {
-//                return true;
-//            }
-//        }
-//
-//        return false;
-//    }
-
-    public void validateWays(HashMap<String, Way> ways) {
-        this.ways = ways;
+    public void addWay(long key, Way way) {
         for (Style style : styles) {
-            for (String key : ways.keySet()) {
-                Way way = ways.get(key);
-                if (!validateWay(way)) continue;
-                style.validateWay(key, way);
-            }
-            style.wrapUpWays();
+            style.validateWay(key, way);
+        }
+    }
+
+    public void save() {
+        for (Style style : styles) {
+            style.save();
         }
     }
 

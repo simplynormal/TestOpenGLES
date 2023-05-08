@@ -14,6 +14,7 @@ import static android.opengl.GLES20.glUseProgram;
 
 import android.content.Context;
 
+import com.hcmut.test.utils.Config;
 import com.hcmut.test.utils.ShaderHelper;
 import com.hcmut.test.utils.TextResourceReader;
 
@@ -34,15 +35,17 @@ public abstract class ShaderProgram {
     }
 
     protected final int program;
+    protected final Config config;
 
-    protected ShaderProgram(Context context, int vertexShaderResourceId,
+    protected ShaderProgram(Config config, int vertexShaderResourceId,
                             int fragmentShaderResourceId) {
+        this.config = config;
         // Compile the shaders and link the program.
         program = ShaderHelper.buildProgram(
                 TextResourceReader
-                        .readTextFileFromResource(context, vertexShaderResourceId),
+                        .readTextFileFromResource(config.context, vertexShaderResourceId),
                 TextResourceReader
-                        .readTextFileFromResource(context, fragmentShaderResourceId));
+                        .readTextFileFromResource(config.context, fragmentShaderResourceId));
     }
 
 

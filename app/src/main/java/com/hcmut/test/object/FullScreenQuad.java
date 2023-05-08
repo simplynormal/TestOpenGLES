@@ -3,10 +3,10 @@ package com.hcmut.test.object;
 import android.opengl.GLES20;
 
 import com.hcmut.test.data.VertexArray;
-import com.hcmut.test.programs.DownsampleShaderProgram;
+import com.hcmut.test.programs.FrameShaderProgram;
 
 public class FullScreenQuad {
-    private final DownsampleShaderProgram shaderProgram;
+    private final FrameShaderProgram shaderProgram;
     private final VertexArray vertexArray;
 
     private static final float[] DATA = {
@@ -16,7 +16,7 @@ public class FullScreenQuad {
             1.0f, 1.0f, 1.0f, 1.0f
     };
 
-    public FullScreenQuad(DownsampleShaderProgram shaderProgram) {
+    public FullScreenQuad(FrameShaderProgram shaderProgram) {
         this.shaderProgram = shaderProgram;
         vertexArray = new VertexArray(shaderProgram, DATA);
     }

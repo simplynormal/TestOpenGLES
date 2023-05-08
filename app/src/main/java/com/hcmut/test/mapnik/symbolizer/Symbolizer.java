@@ -2,17 +2,16 @@ package com.hcmut.test.mapnik.symbolizer;
 
 import androidx.annotation.NonNull;
 
+import com.hcmut.test.algorithm.CoordinateTransform;
 import com.hcmut.test.geometry.PointList;
-import com.hcmut.test.osm.Element;
+import com.hcmut.test.osm.Way;
 import com.hcmut.test.utils.Config;
 
 public abstract class Symbolizer {
     protected Config config;
-
-    abstract public SymMeta toDrawable(Element element, PointList shape);
-
-    //    abstract public SymMeta appendDrawable(SymMeta oldDrawable, SymMeta newDrawable);
-    abstract public void draw(SymMeta symMeta);
+    abstract public SymMeta toDrawable(Way way);
+    @NonNull
+    public abstract String toString();
 
     protected Symbolizer(Config config) {
         this.config = config;
@@ -73,7 +72,4 @@ public abstract class Symbolizer {
         colorVector[3] = Integer.parseInt(colorString.substring(7, 9), 16) / 255f;
         return colorVector;
     }
-
-    @NonNull
-    public abstract String toString();
 }

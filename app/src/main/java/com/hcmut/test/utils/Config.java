@@ -4,8 +4,12 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 
 import com.hcmut.test.algorithm.CoordinateTransform;
+import com.hcmut.test.geometry.Vector;
 import com.hcmut.test.osm.Node;
 import com.hcmut.test.programs.ColorShaderProgram;
+import com.hcmut.test.programs.FrameShaderProgram;
+import com.hcmut.test.programs.LineTextShaderProgram;
+import com.hcmut.test.programs.PointTextShaderProgram;
 import com.hcmut.test.programs.TextShaderProgram;
 
 import org.osgeo.proj4j.ProjCoordinate;
@@ -13,6 +17,8 @@ import org.osgeo.proj4j.ProjCoordinate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.BiConsumer;
 import java.lang.Runnable;
 
@@ -24,9 +30,15 @@ public class Config {
     private float originX;
     private float originY;
     private float scaleDenominator;
+    private float scale = 1;
+    private float rotation = 0;
+    private Vector translation = new Vector(0, 0);
     private final List<BiConsumer<Config, Set<Property>>> listeners = new ArrayList<>();
-    public final ColorShaderProgram colorShaderProgram;
-    public final TextShaderProgram textShaderProgram;
+    private ColorShaderProgram colorShaderProgram;
+    private TextShaderProgram textShaderProgram;
+    private PointTextShaderProgram pointTextShaderProgram;
+    private LineTextShaderProgram lineTextShaderProgram;
+    private FrameShaderProgram frameShaderProgram;
     public final Context context;
 
     public enum Property {
@@ -35,13 +47,14 @@ public class Config {
         PIXEL_PER_LENGTH,
         ORIGIN_X,
         ORIGIN_Y,
-        SCALE_DENOMINATOR
+        SCALE_DENOMINATOR,
+        SCALE,
+        ROTATION,
+        TRANSLATION
     }
 
-    public Config(Context context, ColorShaderProgram colorShaderProgram, TextShaderProgram textShaderProgram) {
+    public Config(Context context) {
         this.context = context;
-        this.colorShaderProgram = colorShaderProgram;
-        this.textShaderProgram = textShaderProgram;
         this.width = 0;
         this.height = 0;
         this.lengthPerPixel = 0;
@@ -54,9 +67,56 @@ public class Config {
     }
 
     public void notifyListeners(Set<Property> changedProperties) {
-        for (BiConsumer<Config, Set<Property>> listener : listeners) {
-            listener.accept(this, changedProperties);
+        if (listeners.isEmpty()) {
+            return;
         }
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.execute(() -> {
+            for (BiConsumer<Config, Set<Property>> listener : listeners) {
+                listener.accept(this, changedProperties);
+            }
+        });
+    }
+
+    public void setColorShaderProgram(ColorShaderProgram colorShaderProgram) {
+        this.colorShaderProgram = colorShaderProgram;
+    }
+
+    public ColorShaderProgram getColorShaderProgram() {
+        return colorShaderProgram;
+    }
+
+    public void setTextShaderProgram(TextShaderProgram textShaderProgram) {
+        this.textShaderProgram = textShaderProgram;
+    }
+
+    public void setPointTextShaderProgram(PointTextShaderProgram pointTextShaderProgram) {
+        this.pointTextShaderProgram = pointTextShaderProgram;
+    }
+
+    public PointTextShaderProgram getPointTextShaderProgram() {
+        return pointTextShaderProgram;
+    }
+
+    public TextShaderProgram getTextShaderProgram() {
+        return textShaderProgram;
+    }
+
+    public void setFrameShaderProgram(FrameShaderProgram frameShaderProgram) {
+        this.frameShaderProgram = frameShaderProgram;
+    }
+
+    public void setLineTextShaderProgram(LineTextShaderProgram lineTextShaderProgram) {
+        this.lineTextShaderProgram = lineTextShaderProgram;
+    }
+
+    public LineTextShaderProgram getLineTextShaderProgram() {
+        return lineTextShaderProgram;
+    }
+
+    public FrameShaderProgram getFrameShaderProgram() {
+        return frameShaderProgram;
     }
 
     public void setWidthHeight(int width, int height) {
@@ -64,9 +124,9 @@ public class Config {
         this.height = height;
         if (width > 0 && height > 0) {
             if (width > height) {
-                this.lengthPerPixel = 2f / height;
+                this.lengthPerPixel = 4f / height / 0.95f;
             } else {
-                this.lengthPerPixel = 2f / width;
+                this.lengthPerPixel = 4f / width / 0.95f;
             }
         }
         notifyListeners(Set.of(Property.WIDTH, Property.HEIGHT, Property.PIXEL_PER_LENGTH));
@@ -113,5 +173,32 @@ public class Config {
 
     public float getOriginY() {
         return originY;
+    }
+
+    public float getScale() {
+        return scale;
+    }
+
+    public float getRotation() {
+        return rotation;
+    }
+
+    public Vector getTranslation() {
+        return translation;
+    }
+
+    public void setScale(float scale) {
+        this.scale = scale;
+        notifyListeners(Set.of(Property.SCALE));
+    }
+
+    public void setRotation(float rotation) {
+        this.rotation = rotation;
+        notifyListeners(Set.of(Property.ROTATION));
+    }
+
+    public void setTranslation(Vector translation) {
+        this.translation = translation;
+        notifyListeners(Set.of(Property.TRANSLATION));
     }
 }

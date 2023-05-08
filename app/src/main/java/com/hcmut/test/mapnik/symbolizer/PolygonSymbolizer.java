@@ -4,11 +4,11 @@ import android.opengl.GLES20;
 
 import androidx.annotation.NonNull;
 
+import com.hcmut.test.algorithm.CoordinateTransform;
 import com.hcmut.test.data.VertexArray;
-import com.hcmut.test.geometry.PointList;
 import com.hcmut.test.geometry.Polygon;
 import com.hcmut.test.geometry.Triangle;
-import com.hcmut.test.osm.Element;
+import com.hcmut.test.osm.Way;
 import com.hcmut.test.programs.ColorShaderProgram;
 import com.hcmut.test.programs.ShaderProgram;
 import com.hcmut.test.utils.Config;
@@ -22,6 +22,10 @@ public class PolygonSymbolizer extends Symbolizer {
     private static class PolygonSymMeta extends SymMeta {
         private float[] drawable;
         protected VertexArray vertexArray = null;
+
+        public PolygonSymMeta() {
+            this.drawable = new float[0];
+        }
 
         public PolygonSymMeta(float[] drawable) {
             this.drawable = drawable;
@@ -40,7 +44,7 @@ public class PolygonSymbolizer extends Symbolizer {
             return new PolygonSymMeta(result);
         }
 
-        private void draw(ShaderProgram shaderProgram) {
+        private void draw(ColorShaderProgram shaderProgram) {
             if (isEmpty()) return;
             if (vertexArray == null) {
                 vertexArray = new VertexArray(shaderProgram, drawable);
@@ -50,6 +54,11 @@ public class PolygonSymbolizer extends Symbolizer {
             vertexArray.setDataFromVertexData();
             int pointCount = vertexArray.getVertexCount();
             GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, pointCount);
+        }
+
+        @Override
+        public void draw(Config config) {
+            draw(config.getColorShaderProgram());
         }
     }
 
@@ -61,17 +70,11 @@ public class PolygonSymbolizer extends Symbolizer {
     }
 
     @Override
-    public SymMeta toDrawable(Element element, PointList shape) {
-        if (!shape.isClosed()) return new PolygonSymMeta(new float[0]);
-
-        Polygon polygon;
-        if (!(shape instanceof Polygon)) {
-            polygon = new Polygon(shape);
-        } else {
-            polygon = (Polygon) shape;
-        }
+    public SymMeta toDrawable(Way way) {
+        if (!way.isClosed()) return new PolygonSymMeta();
+        float scaledPixel = CoordinateTransform.getScalePixel(config.getScaleDenominator());
+        Polygon polygon = way.toPolygon(config.getOriginX(), config.getOriginY(), scaledPixel * config.getLengthPerPixel());
         List<Triangle> curTriangulatedTriangles = polygon.triangulate();
-
         return new PolygonSymMeta(ColorShaderProgram.toVertexData(new ArrayList<>() {
             {
                 for (Triangle triangle : curTriangulatedTriangles) {
@@ -81,13 +84,6 @@ public class PolygonSymbolizer extends Symbolizer {
                 }
             }
         }, fillColor));
-    }
-
-    @Override
-    public void draw(SymMeta symMeta) {
-        if (!(symMeta instanceof PolygonSymMeta)) return;
-        PolygonSymMeta polygonSymMeta = (PolygonSymMeta) symMeta;
-        polygonSymMeta.draw(config.colorShaderProgram);
     }
 
     @NonNull

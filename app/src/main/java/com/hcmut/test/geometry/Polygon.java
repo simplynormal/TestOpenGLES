@@ -1,5 +1,7 @@
 package com.hcmut.test.geometry;
 
+import android.annotation.SuppressLint;
+
 import com.hcmut.test.osm.Node;
 import com.hcmut.test.osm.Way;
 import com.hcmut.test.geometry.equation.LineEquation;
@@ -11,9 +13,10 @@ import org.poly2tri.triangulation.delaunay.DelaunayTriangle;
 import java.util.ArrayList;
 import java.util.List;
 
+@SuppressLint("NewApi")
 public class Polygon extends PointList {
     public final List<Polygon> holes;
-    private final List<Triangle> triangulatedTriangles = new ArrayList<>();
+    private List<Triangle> triangulatedTriangles = new ArrayList<>(0);
 
     public Polygon(List<Point> points) {
         super(points);
@@ -60,7 +63,7 @@ public class Polygon extends PointList {
             return triangulatedTriangles;
         }
 
-        ArrayList<PolygonPoint> triangulatePoints = new ArrayList<>();
+        ArrayList<PolygonPoint> triangulatePoints = new ArrayList<>(points.size());
         for (Point p : points) {
             triangulatePoints.add(new PolygonPoint(p.x, p.y));
         }
@@ -86,7 +89,7 @@ public class Polygon extends PointList {
             ));
         }
 
-        triangulatedTriangles.addAll(triangles);
+        triangulatedTriangles = triangles;
         return triangles;
     }
 
@@ -102,19 +105,16 @@ public class Polygon extends PointList {
         return area;
     }
 
-    public boolean doesContain(Point point) {
-        Line line = new Line(point, new Point(-999999999, point.y));
-        int count = 0;
-        for (int i = 0; i < points.size() - 1; i++) {
-            Point p1 = points.get(i);
-            Point p2 = points.get((i + 1) % points.size());
-            Line edge = new Line(p1, p2);
-            if (line.intersect(edge) != null) {
-                count++;
-            }
+    public Point getCentroid() {
+        if (triangulatedTriangles.size() == 0) {
+            triangulate();
         }
 
-        return count % 2 == 1;
+        return triangulatedTriangles.stream().reduce(
+                new Point(0, 0, 0),
+                (p, t) -> p.add(t.getCentroid().scale(t.getArea())),
+                Point::add
+        ).scale(1f / getArea());
     }
 
     public void removeSameLinePoints() {
@@ -135,40 +135,20 @@ public class Polygon extends PointList {
         }
     }
 
-    public Polygon scale(float scale) {
+    public Polygon transform(float scaleX, float scaleY, float rotate, float translateX, float translateY) {
         List<Point> scaledPoints = new ArrayList<>();
         for (Point point : points) {
-            scaledPoints.add(point.scale(scale));
+            scaledPoints.add(point.transform(scaleX, scaleY, rotate, translateX, translateY));
         }
         Polygon rv = new Polygon(scaledPoints);
         for (Polygon hole : holes) {
-            rv.addHole(hole.scale(scale));
+            rv.addHole(hole.transform(scaleX, scaleY, rotate, translateX, translateY));
         }
         for (Triangle triangle : triangulatedTriangles) {
             Triangle scaledTriangle = new Triangle(
-                    triangle.p1.scale(scale),
-                    triangle.p2.scale(scale),
-                    triangle.p3.scale(scale)
-            );
-            rv.triangulatedTriangles.add(scaledTriangle);
-        }
-        return rv;
-    }
-
-    public Polygon transform(float originX, float originY, float scale) {
-        List<Point> scaledPoints = new ArrayList<>();
-        for (Point point : points) {
-            scaledPoints.add(point.transform(originX, originY, scale));
-        }
-        Polygon rv = new Polygon(scaledPoints);
-        for (Polygon hole : holes) {
-            rv.addHole(hole.transform(originX, originY, scale));
-        }
-        for (Triangle triangle : triangulatedTriangles) {
-            Triangle scaledTriangle = new Triangle(
-                    triangle.p1.transform(originX, originY, scale),
-                    triangle.p2.transform(originX, originY, scale),
-                    triangle.p3.transform(originX, originY, scale)
+                    triangle.p1.transform(scaleX, scaleY, rotate, translateX, translateY),
+                    triangle.p2.transform(scaleX, scaleY, rotate, translateX, translateY),
+                    triangle.p3.transform(scaleX, scaleY, rotate, translateX, translateY)
             );
             rv.triangulatedTriangles.add(scaledTriangle);
         }

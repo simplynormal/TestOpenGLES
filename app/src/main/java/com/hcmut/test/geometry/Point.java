@@ -53,8 +53,32 @@ public class Point {
         return new Point((x - originX) * scale, (y - originY) * scale, z);
     }
 
+    public Point transform(float scaleX, float scaleY, float rotate, float translateX, float translateY) {
+        // Apply scaling
+        float x = this.x * scaleX;
+        float y = this.y * scaleY;
+
+        // Apply rotation
+        double angle = Math.toRadians(rotate);
+        float rotatedX = (float) (x * Math.cos(angle) - y * Math.sin(angle));
+        float rotatedY = (float) (x * Math.sin(angle) + y * Math.cos(angle));
+        x = rotatedX;
+        y = rotatedY;
+
+        // Apply translation
+        x += translateX;
+        y += translateY;
+
+        // Return the transformed point
+        return new Point(x, y);
+    }
+
     public Point add(Vector v) {
         return new Point(this.x + v.x, this.y + v.y, this.z + v.z);
+    }
+
+    public Point add(Point p) {
+        return new Point(this.x + p.x, this.y + p.y, this.z + p.z);
     }
 
     public static List<Point> toPoints(float[] points) {

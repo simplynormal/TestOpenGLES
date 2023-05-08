@@ -13,7 +13,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public class Node extends Element {
+public class Node {
     public final float lat;
     public final float lon;
 
@@ -53,36 +53,6 @@ public class Node extends Element {
     @Override
     public boolean equals(@Nullable Object obj) {
         return obj instanceof Node && ((Node) obj).lat == lat && ((Node) obj).lon == lon;
-    }
-
-    @Override
-    public List<PointList> toPointLists() {
-        List<PointList> pointLists = new ArrayList<>(1);
-        PointList pointList = new PointList(new ArrayList<>(1) {{
-            add(toPoint());
-        }});
-        pointLists.add(pointList);
-        return pointLists;
-    }
-
-    @Override
-    public List<PointList> toPointLists(float scale) {
-        List<PointList> pointLists = new ArrayList<>(1);
-        PointList pointList = new PointList(new ArrayList<>(1) {{
-            add(toPoint(scale));
-        }});
-        pointLists.add(pointList);
-        return pointLists;
-    }
-
-    @Override
-    public List<PointList> toPointLists(float originX, float originY, float scale) {
-        List<PointList> pointLists = new ArrayList<>(1);
-        PointList pointList = new PointList(new ArrayList<>(1) {{
-            add(toPoint(originX, originY, scale));
-        }});
-        pointLists.add(pointList);
-        return pointLists;
     }
 
     @NonNull

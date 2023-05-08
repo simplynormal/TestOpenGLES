@@ -5,15 +5,14 @@ import android.opengl.GLES20;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.hcmut.test.algorithm.CoordinateTransform;
 import com.hcmut.test.algorithm.StrokeGenerator;
 import com.hcmut.test.data.VertexArray;
 import com.hcmut.test.geometry.LineStrip;
 import com.hcmut.test.geometry.Point;
-import com.hcmut.test.geometry.PointList;
-import com.hcmut.test.geometry.Polygon;
 import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.geometry.Vector;
-import com.hcmut.test.osm.Element;
+import com.hcmut.test.osm.Way;
 import com.hcmut.test.programs.ColorShaderProgram;
 import com.hcmut.test.programs.ShaderProgram;
 import com.hcmut.test.utils.Config;
@@ -27,6 +26,10 @@ public class LineSymbolizer extends Symbolizer {
     private static class LineSymMeta extends SymMeta {
         private float[] drawable;
         protected VertexArray vertexArray = null;
+
+        public LineSymMeta() {
+            this.drawable = new float[0];
+        }
 
         public LineSymMeta(float[] drawable) {
             this.drawable = drawable;
@@ -45,7 +48,7 @@ public class LineSymbolizer extends Symbolizer {
             return new LineSymMeta(result);
         }
 
-        private void draw(ShaderProgram shaderProgram) {
+        private void draw(ColorShaderProgram shaderProgram) {
             if (isEmpty()) return;
             if (vertexArray == null) {
                 vertexArray = new VertexArray(shaderProgram, drawable);
@@ -55,6 +58,11 @@ public class LineSymbolizer extends Symbolizer {
             vertexArray.setDataFromVertexData();
             int pointCount = vertexArray.getVertexCount();
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, pointCount);
+        }
+
+        @Override
+        public void draw(Config config) {
+            draw(config.getColorShaderProgram());
         }
     }
 
@@ -189,24 +197,18 @@ public class LineSymbolizer extends Symbolizer {
     private float[] drawLineStrip(LineStrip lineStrip) {
         float strokeWidth = this.strokeWidth * config.getLengthPerPixel();
 //        System.out.println("Rendering line with stroke width: " + strokeWidth);
-        StrokeGenerator.Stroke stroke = StrokeGenerator.generateStroke(lineStrip
-                , 8, strokeWidth / 2, strokeLineCap);
-        TriangleStrip triangleStrip = stroke.toTriangleStrip();
+        TriangleStrip triangleStrip = StrokeGenerator.generateStroke(lineStrip, 8, strokeWidth / 2, strokeLineCap).toTriangleStrip();
         return ColorShaderProgram.toVertexData(triangleStrip, strokeColor);
     }
 
     @Override
-    public SymMeta toDrawable(Element element, PointList shape) {
-        LineStrip lineStrip;
-        if (!(shape instanceof LineStrip)) {
-            lineStrip = new LineStrip(shape);
-        } else {
-            lineStrip = (LineStrip) shape;
-        }
+    public SymMeta toDrawable(Way way) {
+        float scaledPixel = CoordinateTransform.getScalePixel(config.getScaleDenominator());
+        LineStrip lineStrip = new LineStrip(way.toPointList(config.getOriginX(), config.getOriginY(), scaledPixel * config.getLengthPerPixel()));
 
         lineStrip = convertToOffsetLineStrip(lineStrip);
 
-        SymMeta rv = new LineSymMeta(new float[0]);
+        SymMeta rv = new LineSymMeta();
 
         if (strokeDashArray != null) {
             List<LineStrip> dashedLineStrips = convertToDashedLineStrips(lineStrip, strokeDashArray);
@@ -218,21 +220,7 @@ public class LineSymbolizer extends Symbolizer {
             rv = new LineSymMeta(drawLineStrip(lineStrip));
         }
 
-        if (shape instanceof Polygon) {
-            Polygon polygon = (Polygon) shape;
-            for (Polygon hole : polygon.holes) {
-                rv = rv.append(new LineSymMeta(drawLineStrip(new LineStrip(hole))));
-            }
-        }
-
         return rv;
-    }
-
-    @Override
-    public void draw(SymMeta symMeta) {
-        if (!(symMeta instanceof LineSymMeta)) return;
-        LineSymMeta lineSymMeta = (LineSymMeta) symMeta;
-        lineSymMeta.draw(config.colorShaderProgram);
     }
 
     @NonNull

@@ -8,6 +8,7 @@ import java.util.List;
 public class Style {
     public final String name;
     public final List<Rule> rules = new ArrayList<>();
+    private boolean hasText = false;
 
     public Style(String name) {
         this.name = name;
@@ -15,13 +16,22 @@ public class Style {
 
     public void validateWay(String key, Way way) {
         for (Rule rule : rules) {
-            rule.validateElement(key, way);
+            rule.validateWay(key, way);
         }
     }
 
-    public void wrapUpWays() {
+    public void validateWay(long key, Way way) {
+        for (Rule rule : rules) {
+            rule.validateWay(key, way);
+        }
+    }
+
+    public void save() {
         for (Rule rule : rules) {
             rule.save();
+            if (rule.hasTextSymbolizer()) {
+                hasText = true;
+            }
         }
     }
 
@@ -29,5 +39,9 @@ public class Style {
         for (Rule rule : rules) {
             rule.draw();
         }
+    }
+
+    public boolean hasTextSymbolizer() {
+        return hasText;
     }
 }

@@ -25,22 +25,8 @@ public class Triangle {
         return v1.cross(v2).length() / 2;
     }
 
-    public float getAngleA() {
-        Vector v1 = new Vector(p1, p2);
-        Vector v2 = new Vector(p1, p3);
-        return v1.angle(v2);
-    }
-
-    public float getAngleB() {
-        Vector v1 = new Vector(p2, p1);
-        Vector v2 = new Vector(p2, p3);
-        return v1.angle(v2);
-    }
-
-    public float getAngleC() {
-        Vector v1 = new Vector(p3, p1);
-        Vector v2 = new Vector(p3, p2);
-        return v1.angle(v2);
+    public Point getCentroid() {
+        return new Point((p1.x + p2.x + p3.x) / 3, (p1.y + p2.y + p3.y) / 3, (p1.z + p2.z + p3.z) / 3);
     }
 
     @NonNull

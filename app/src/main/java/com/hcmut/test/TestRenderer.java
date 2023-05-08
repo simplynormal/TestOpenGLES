@@ -6,57 +6,55 @@ import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 
-import com.hcmut.test.algorithm.CoordinateTransform;
-import com.hcmut.test.algorithm.StrokeGenerator;
+import androidx.annotation.NonNull;
+
 import com.hcmut.test.data.Framebuffer;
-import com.hcmut.test.data.VertexArray;
-import com.hcmut.test.geometry.LineStrip;
 import com.hcmut.test.geometry.Point;
-import com.hcmut.test.geometry.PointList;
 import com.hcmut.test.geometry.Ray;
-import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.geometry.Vector;
-import com.hcmut.test.mapnik.Layer;
 import com.hcmut.test.mapnik.symbolizer.LineSymbolizer;
 import com.hcmut.test.mapnik.StyleParser;
+import com.hcmut.test.mapnik.symbolizer.PolygonSymbolizer;
 import com.hcmut.test.mapnik.symbolizer.SymMeta;
 import com.hcmut.test.mapnik.symbolizer.TextSymbolizer;
 import com.hcmut.test.object.FullScreenQuad;
-import com.hcmut.test.programs.DownsampleShaderProgram;
+import com.hcmut.test.object.MapView;
+import com.hcmut.test.programs.FrameShaderProgram;
+import com.hcmut.test.programs.LineTextShaderProgram;
+import com.hcmut.test.programs.PointTextShaderProgram;
 import com.hcmut.test.reader.MapReader;
-import com.hcmut.test.object.ObjectBuilder;
 import com.hcmut.test.osm.Way;
-import com.hcmut.test.object.TextDrawer;
 import com.hcmut.test.programs.ColorShaderProgram;
 import com.hcmut.test.programs.TextShaderProgram;
+import com.hcmut.test.remote.BaseResponse;
+import com.hcmut.test.remote.LayerRequest;
+import com.hcmut.test.remote.LayerResponse;
 import com.hcmut.test.utils.Config;
 
 import org.xmlpull.v1.XmlPullParserException;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
 public class TestRenderer implements GLSurfaceView.Renderer {
-    private final Context context;
-    private ColorShaderProgram colorProgram;
-    private TextShaderProgram textProgram;
-    private DownsampleShaderProgram downsampleProgram;
-    private ObjectBuilder builder;
-    private MapReader mapReader;
-    private StyleParser styleParser;
-    private Config config;
-    private Framebuffer mFramebuffer;
-    private FullScreenQuad mFullScreenQuad;
+    private FrameShaderProgram frameShaderProgram;
+    private MapView mapView;
+    private final Config config;
+    private Framebuffer framebuffer;
+    private FullScreenQuad fullScreenQuad;
     private final float[] vertices = {
-            -1.0f, -1.0f, 0.0f,
-            1.0f, -1.0f, 0.0f,
-            1.0f, 1.0f, 0.0f,
-            -1.0f, 1.0f, 0.0f,
-            -1.0f, -1.0f, 0.0f,
+            0f, 0f, 0f,
+            0.5f, 0f, 0f,
+            0.5f, 0.5f, 0f,
+            0f, 0.5f, 0f,
+            0f, 0f, 0f,
     };
     private final float[] vertices1 = {
             0f, 0f, 0f,
@@ -68,97 +66,109 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             0f, 0.5f, 0f,
             -0.5f, 0.5f, 0f,
     };
-
-    private float oldX = 0;
-    private float oldY = 0;
-    private float oldDistance = 0;
     private final float[] projectionMatrix = new float[16];
     private final float[] modelViewMatrix = new float[16];
-    private final float[] transformMatrix = new float[16];
-    private float[] oldTransformMatrix;
-    private float originX = 0;
-    private float originY = 0;
-    private float scale = 1f;
     private Point oldPos;
     private List<Point> oldPosList;
 
+    private float minLon = 0;
+    private float maxLon = 0;
+    private float minLat = 0;
+    private float maxLat = 0;
+
 
     public TestRenderer(Context context) {
-        this.context = context;
+        config = new Config(context);
     }
 
     public void initOpenGL() {
-        colorProgram = new ColorShaderProgram(context, projectionMatrix, modelViewMatrix, transformMatrix);
-        textProgram = new TextShaderProgram(context, projectionMatrix, modelViewMatrix, transformMatrix);
-        config = new Config(context, colorProgram, textProgram);
-        builder = new ObjectBuilder(context, colorProgram, textProgram);
-
-        int width = context.getResources().getDisplayMetrics().widthPixels;
-        int height = context.getResources().getDisplayMetrics().heightPixels;
+        int width = config.context.getResources().getDisplayMetrics().widthPixels;
+        int height = config.context.getResources().getDisplayMetrics().heightPixels;
         config.setWidthHeight(width, height);
-        downsampleProgram = new DownsampleShaderProgram(config);
 
-        float minLon = 106.73603f;
-        float maxLon = 106.74072f;
-        float minLat = 10.73122f;
-        float maxLat = 10.73465f;
+        ColorShaderProgram colorProgram = new ColorShaderProgram(config, projectionMatrix, modelViewMatrix);
+        PointTextShaderProgram pointTextProgram = new PointTextShaderProgram(config, projectionMatrix, modelViewMatrix);
+        LineTextShaderProgram lineTextProgram = new LineTextShaderProgram(config, projectionMatrix, modelViewMatrix);
+        TextShaderProgram textProgram = new TextShaderProgram(config, projectionMatrix, modelViewMatrix);
+        frameShaderProgram = new FrameShaderProgram(config);
 
-//        float minLon = 106.71410f;
-//        float maxLon = 106.72421f;
-//        float minLat = 10.72307f;
-//        float maxLat = 10.72860f;
+        config.setColorShaderProgram(colorProgram);
+        config.setTextShaderProgram(textProgram);
+        config.setPointTextShaderProgram(pointTextProgram);
+        config.setLineTextShaderProgram(lineTextProgram);
+        config.setFrameShaderProgram(frameShaderProgram);
 
-//        float minLon = 106.7091f;
-//        float maxLon = 106.7477f;
-//        float minLat = 10.7190f;
-//        float maxLat = 10.7455f;
+//        minLon = 106.73603f;
+//        maxLon = 106.74072f;
+//        minLat = 10.73122f;
+//        maxLat = 10.73465f;
 
-        originX = (minLon + maxLon) / 2;
-        originY = (minLat + maxLat) / 2;
-        scale = 583.1902f;
+//        minLon = 106.71410f;
+//        maxLon = 106.72421f;
+//        minLat = 10.72307f;
+//        maxLat = 10.72860f;
+
+        minLon = 106.7187f;
+        maxLon = 106.7401f;
+        minLat = 10.7237f;
+        maxLat = 10.7350f;
+
+        float originX = (minLon + maxLon) / 2;
+        float originY = (minLat + maxLat) / 2;
         config.setOriginFromWGS84(originX, originY);
-        config.setScaleDenominator(2000);
+        config.setScaleDenominator(1000);
+    }
 
+    void read() {
+//        MapReader mapReader;
+        StyleParser styleParser;
         try {
-            mapReader = new MapReader(context, R.raw.map1);
-            mapReader.setBounds(minLon, maxLon, minLat, maxLat);
-            mapReader.read();
+//            mapReader = new MapReader(config.context, R.raw.map1);
+//            mapReader.setBounds(minLon, maxLon, minLat, maxLat);
+//            mapReader.read();
             styleParser = new StyleParser(config, R.raw.mapnik);
             styleParser.read();
         } catch (XmlPullParserException e) {
             throw new RuntimeException(e);
         }
 
-        styleParser.validateWays(mapReader.ways);
+        mapView = new MapView();
+        mapView.setLayers(styleParser.layers);
+//        mapView.validateWays();
     }
 
-    void checkAntiAliasing() {
-//        String extensions = GLES20.glGetString(GLES20.GL_EXTENSIONS);
-//        System.out.println("extensions: " + extensions);
+    void request() {
+        System.out.println("before postGetLayer");
+        LayerRequest layerRequest = new LayerRequest(minLon, maxLon, minLat, maxLat);
+        layerRequest.post(new Callback<>() {
+            @Override
+            public void onResponse(@NonNull Call<BaseResponse<LayerResponse>> call, @NonNull Response<BaseResponse<LayerResponse>> response) {
+                if (response.body() == null) {
+                    System.err.println("response.body() == null");
+                    return;
+                }
+                LayerResponse layerResponse = response.body().getData();
+                System.out.println("layerResponse = " + layerResponse);
+                mapView.validateResponse(layerResponse);
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<BaseResponse<LayerResponse>> call, @NonNull Throwable t) {
+                System.err.println("onFailure: " + t.getMessage());
+            }
+        });
+        System.out.println("after postGetLayer");
     }
 
     @Override
     public void onSurfaceCreated(GL10 glUnused, EGLConfig config) {
         GLES20.glClearColor(0.95f, 0.94f, 0.91f, 1f);
-        GLES20.glEnable(GLES20.GL_SAMPLE_ALPHA_TO_COVERAGE);
-//        GLES20.glEnable(GLES20.GL_SAMPLE_COVERAGE);
-        GLES20.glSampleCoverage(1, false);
         GLES20.glEnable(GLES20.GL_BLEND);
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
 
         initOpenGL();
-        checkAntiAliasing();
-
-//        for (String key : mapReader.ways.keySet()) {
-//            Way way = mapReader.ways.get(key);
-//            if (way != null) {
-//                builder.addWay(key, way, originX, originY, scale);
-//            }
-//        }
-//        builder.finalizeDrawer();
-
-//        Rule.test();
-//        StyleParser.test(context, R.raw.mapnik);
+        read();
+        request();
         Test.test();
     }
 
@@ -170,6 +180,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
     private Ray convertNormalized2DPointToRay(
             float normalizedX, float normalizedY) {
+        float[] transformMatrix = getTransformMatrix();
         // We'll convert these normalized device coordinates into world-space
         // coordinates. We'll pick a point on the near and far planes, and draw a
         // line between them. To do this transform, we need to first multiply by
@@ -206,36 +217,19 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         return new Ray(nearPointRay, new Vector(nearPointRay, farPointRay));
     }
 
-    private void testPointCalc() {
-        Point scaledCenter = new Point(1, 1);
-        System.out.println("Org: " + scaledCenter);
+    private float[] getTransformMatrix() {
+        float[] transformMatrix = new float[16];
+        Matrix.setIdentityM(transformMatrix, 0);
 
-        float[] mat = new float[16];
-        Matrix.setIdentityM(mat, 0);
-        Matrix.translateM(mat, 0, 0.5f, 0.5f, 0);
+        float scale = config.getScale();
+        float rotation = config.getRotation();
+        Vector translation = config.getTranslation();
 
-        Point calculatedCenter = testPointCalc(scaledCenter, mat);
-        System.out.println("Calc center: " + calculatedCenter);
+        Matrix.scaleM(transformMatrix, 0, scale, scale, 1);
+        Matrix.rotateM(transformMatrix, 0, rotation, 0, 0, 1);
+        Matrix.translateM(transformMatrix, 0, translation.x, translation.y, 0);
 
-        Point calcBack = fromProjScreenToCoord(calculatedCenter, mat);
-        System.out.println("Calc back: " + calcBack);
-    }
-
-    private Point testPointCalc(Point p, float[] transformMatrix) {
-        float[] vec = new float[]{p.x, p.y, p.z, 1};
-
-        float[] result = new float[4];
-        Matrix.multiplyMV(result, 0, transformMatrix, 0, vec, 0);
-        Matrix.multiplyMV(result, 0, modelViewMatrix, 0, result, 0);
-        Matrix.multiplyMV(result, 0, projectionMatrix, 0, result, 0);
-
-        if (result[3] != 0) {
-            result[0] /= result[3];
-            result[1] /= result[3];
-            result[2] /= result[3];
-        }
-
-        return new Point(result[0], result[1], result[2]);
+        return transformMatrix;
     }
 
     private Point pixelScreenToProjScreen(float x, float y) {
@@ -243,12 +237,13 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         return new Point(x / config.getWidth() * 2 - 1, 1 - y / config.getHeight() * 2);
     }
 
-    private Point pixelScreenToCoord(float x, float y, float[] transformMatrix) {
+    private Point pixelScreenToCoord(float x, float y) {
         Point pos = pixelScreenToProjScreen(x, y);
-        return fromProjScreenToCoord(pos, transformMatrix);
+        return fromProjScreenToCoord(pos);
     }
 
-    private Point fromProjScreenToCoord(Point p, float[] transformMatrix) {
+    private Point fromProjScreenToCoord(Point p) {
+        float[] transformMatrix = getTransformMatrix();
         float[] inverseProjection = new float[16];
         Matrix.invertM(inverseProjection, 0, projectionMatrix, 0);
         float[] inverseModelView = new float[16];
@@ -271,22 +266,21 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         return new Point(resultVec[0], resultVec[1], resultVec[2]);
     }
 
+    private void translateMap(Point oldPos, Point newPos) {
+        Vector translation = new Vector(oldPos, newPos);
+        translation = translation.add(config.getTranslation());
+        config.setTranslation(translation);
+    }
+
     public void actionDown(float x, float y) {
-        oldTransformMatrix = Arrays.copyOf(transformMatrix, transformMatrix.length);
-        oldPos = pixelScreenToCoord(x, y, oldTransformMatrix);
+        oldPos = pixelScreenToCoord(x, y);
         System.out.println("actionDown: " + oldPos);
     }
 
     public void actionMove(float x, float y) {
-        float[] copyOldTransformMatrix = Arrays.copyOf(oldTransformMatrix, oldTransformMatrix.length);
-        Point newPos = pixelScreenToCoord(x, y, copyOldTransformMatrix);
+        Point newPos = pixelScreenToCoord(x, y);
         System.out.println("actionMove: " + newPos);
-        float translateX = newPos.x - oldPos.x;
-        float translateY = newPos.y - oldPos.y;
-        Matrix.translateM(copyOldTransformMatrix, 0, translateX, translateY, 0);
-
-        // copy to transformMatrix
-        System.arraycopy(copyOldTransformMatrix, 0, transformMatrix, 0, transformMatrix.length);
+        translateMap(oldPos, newPos);
     }
 
     public void actionUp(float x, float y) {
@@ -295,10 +289,9 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     @SuppressLint("NewApi")
     public void actionPointerDown(List<Float> x, List<Float> y) {
         if (x.size() != 2) return;
-        oldTransformMatrix = Arrays.copyOf(transformMatrix, transformMatrix.length);
         oldPosList = new ArrayList<>() {{
             for (int i = 0; i < x.size(); i++) {
-                add(pixelScreenToCoord(x.get(i), y.get(i), oldTransformMatrix));
+                add(pixelScreenToCoord(x.get(i), y.get(i)));
             }
         }};
         System.out.println("actionPointerDown: " + oldPosList);
@@ -307,10 +300,9 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     @SuppressLint("NewApi")
     public void actionPointerMove(List<Float> x, List<Float> y) {
         if (x.size() != 2) return;
-        float[] copyOldTransformMatrix = Arrays.copyOf(oldTransformMatrix, oldTransformMatrix.length);
         List<Point> newPosList = new ArrayList<>() {{
             for (int i = 0; i < x.size(); i++) {
-                add(pixelScreenToCoord(x.get(i), y.get(i), oldTransformMatrix));
+                add(pixelScreenToCoord(x.get(i), y.get(i)));
             }
         }};
 
@@ -318,39 +310,26 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         Point oldP2 = oldPosList.get(1);
         Point p1 = newPosList.get(0);
         Point p2 = newPosList.get(1);
-
-        // Translate
         Point oldCenter = oldP1.midPoint(oldP2);
         Point center = p1.midPoint(p2);
-        float translateX = center.x - oldCenter.x;
-        float translateY = center.y - oldCenter.y;
-        Matrix.translateM(copyOldTransformMatrix, 0, translateX, translateY, 0);
 
         // Scale
         float oldDistance = oldP1.distance(oldP2);
         float newDistance = p1.distance(p2);
         float scale = newDistance / oldDistance;
-
-        Matrix.translateM(copyOldTransformMatrix, 0, center.x, center.y, 0);
-        Matrix.scaleM(copyOldTransformMatrix, 0, scale, scale, 1);
-        Matrix.translateM(copyOldTransformMatrix, 0, -center.x, -center.y, 0);
+        config.setScale(scale * config.getScale());
 
         // Rotate
         Vector vecX = new Vector(1, 0);
         float oldAngle = new Vector(oldP1, oldP2).signedAngle(vecX);
         float newAngle = new Vector(p1, p2).signedAngle(vecX);
         float angle = (float) Math.toDegrees(oldAngle - newAngle);
+        config.setRotation((angle + config.getRotation() + 360) % 360);
 
-        System.out.println("oldAngle: " + Math.toDegrees(oldAngle) + ", newAngle: " + Math.toDegrees(newAngle) + ", angle: " + angle);
+        // Translate
+        translateMap(oldCenter, center);
 
-        Matrix.translateM(copyOldTransformMatrix, 0, center.x, center.y, 0);
-        Matrix.rotateM(copyOldTransformMatrix, 0, angle, 0, 0, 1);
-        Matrix.translateM(copyOldTransformMatrix, 0, -center.x, -center.y, 0);
-
-        // copy to transformMatrix
-        System.arraycopy(copyOldTransformMatrix, 0, transformMatrix, 0, transformMatrix.length);
-
-        this.scale += scale;
+//        System.out.println("oldAngle: " + Math.toDegrees(oldAngle) + ", newAngle: " + Math.toDegrees(newAngle) + ", angle: " + angle);
     }
 
     public void actionPointerUp(List<Float> x, List<Float> y) {
@@ -362,113 +341,15 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         GLES20.glViewport(0, 0, width, height);
         Matrix.frustumM(projectionMatrix, 0, -width / (float) height, width / (float) height, -1f, 1f, 1f, 10f);
         Matrix.setLookAtM(modelViewMatrix, 0, 0f, 0f, 2f, 0f, 0, 0f, 0f, 1f, 0f);
-        Matrix.setIdentityM(transformMatrix, 0);
-        float scaledToLength = CoordinateTransform.getScalePixel(config.getScaleDenominator()) * config.getLengthPerPixel();
-        float translateX = -config.getOriginX() * scaledToLength;
-        float translateY = -config.getOriginY() * scaledToLength;
-//        Matrix.translateM(transformMatrix, 0, 1, 1, 0);
 
-//        testPointCalc();
-
-//        Matrix.orthoM(projectionMatrix, 0, -1f, 1f, -aspectRatio, aspectRatio, -1f, 1f);
-//        Matrix.setIdentityM(modelViewMatrix, 0);
-
-        mFramebuffer = new Framebuffer(width, height);
-        mFullScreenQuad = new FullScreenQuad(downsampleProgram);
+        framebuffer = new Framebuffer(width, height);
+        fullScreenQuad = new FullScreenQuad(frameShaderProgram);
     }
 
-    public void testClosedShape() {
-        ObjectBuilder builder1 = new ObjectBuilder(context, colorProgram, textProgram);
-        Way way = new Way(vertices);
-
-        builder1.addWay("asd", way, 0, 0, 1);
-        builder1.finalizeDrawer();
-
-        builder1.draw();
-    }
-
-    public void testStroke() {
-//        GLES20.glDisable(GLES20.GL_DEPTH_TEST);
-
-        float[] chosenVertices = vertices1;
-
-        float[] first = new float[]{
-                chosenVertices[0], chosenVertices[1], chosenVertices[2],
-        };
-
-        for (int i = 0; i < chosenVertices.length; i += 3) {
-            chosenVertices[i] -= first[0];
-            chosenVertices[i + 1] -= first[1];
-            chosenVertices[i + 2] -= first[2];
-        }
-
-        StrokeGenerator.Stroke rvStroke = StrokeGenerator.generateStroke(new LineStrip(chosenVertices), 8, 0.0012962963f);
-        TriangleStrip rv = rvStroke.toTriangleStrip();
-        TriangleStrip rvLine = new TriangleStrip(rvStroke.toOrderedPoints());
-        TriangleStrip rvBorder = StrokeGenerator.generateBorderFromStroke(rvStroke, 10, 0.002f);
-        List<Point> points = Point.toPoints(chosenVertices);
-
-        VertexArray rvVertexArray = new VertexArray(colorProgram, rv, 1f, 1f, 1f, 1);
-        VertexArray rvLineVertexArray = new VertexArray(colorProgram, rvLine, 0, 0, 0, 1);
-        VertexArray rvBorderVertexArray = new VertexArray(colorProgram, rvBorder, 0, 0, 0, 0.7f);
-        VertexArray singleVertexArray = new VertexArray(colorProgram, points, 0, 0, 1, 1);
-
-
-        colorProgram.useProgram();
-
-        rvVertexArray.setDataFromVertexData();
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, rv.points.size());
-
-        rvLineVertexArray.setDataFromVertexData();
-        GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, rvLine.points.size());
-
-        rvBorderVertexArray.setDataFromVertexData();
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, rvBorder.points.size());
-        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, rvBorder.points.size());
-
-        singleVertexArray.setDataFromVertexData();
-        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, points.size());
-    }
-
-    void testText() {
-        GLES20.glDisable(GLES20.GL_DEPTH_TEST);
-        float[] chosenVertices = vertices1;
-
-        float[] first = new float[]{
-                chosenVertices[0], chosenVertices[1], chosenVertices[2],
-        };
-
-        for (int i = 0; i < chosenVertices.length; i += 3) {
-            chosenVertices[i] -= first[0];
-            chosenVertices[i + 1] -= first[1];
-            chosenVertices[i + 2] -= first[2];
-        }
-
-        List<Point> points = Point.toPoints(chosenVertices);
-        TextDrawer.test(textProgram, colorProgram, context, points);
-    }
-
-    void drawLineSymbolizer(float[] chosenVertices, LineSymbolizer lineSymbolizer, boolean drawPoints) {
-        List<Point> points = Point.toPoints(chosenVertices);
-        PointList pointList = new PointList(points);
-
-        SymMeta drawables = lineSymbolizer.toDrawable(null, pointList);
-        lineSymbolizer.draw(drawables);
-
-//        if (!drawPoints) {
-//            return;
-//        }
-//
-//        for (int i = 0; i < drawables.length; i += 7) {
-//            drawables[i + 3] = 0;
-//            drawables[i + 4] = 0;
-//            drawables[i + 5] = 0;
-//        }
-//        vertexArray = new VertexArray(colorProgram, drawables);
-//        config.colorShaderProgram.useProgram();
-//        vertexArray.setDataFromVertexData();
-//        pointCount = vertexArray.getVertexCount();
-//        GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, pointCount);
+    void drawLineSymbolizer(float[] chosenVertices, LineSymbolizer lineSymbolizer) {
+        Way way = new Way(chosenVertices);
+        SymMeta drawables = lineSymbolizer.toDrawable(way);
+        drawables.draw(config);
     }
 
     void testLineSymbolizer() {
@@ -547,20 +428,24 @@ public class TestRenderer implements GLSurfaceView.Renderer {
                 null
         );
 
-        drawLineSymbolizer(chosenVertices, lineSymbolizer, true);
-//        drawLineSymbolizer(chosenVertices2, lineSymbolizer2, true);
-//        drawLineSymbolizer(chosenVertices3, lineSymbolizer3, true);
-//        drawLineSymbolizer(chosenVertices4, lineSymbolizer4, false);
+        drawLineSymbolizer(chosenVertices, lineSymbolizer);
+        drawLineSymbolizer(chosenVertices2, lineSymbolizer2);
+        drawLineSymbolizer(chosenVertices3, lineSymbolizer3);
+        drawLineSymbolizer(chosenVertices4, lineSymbolizer4);
     }
 
     //
-    void drawTextSymbolizer(float[] chosenVertices, TextSymbolizer textSymbolizer, boolean drawPoints) {
-        List<Point> points = Point.toPoints(chosenVertices);
-        PointList pointList = new PointList(points);
-        Way way = new Way();
+    void drawTextSymbolizer(float[] chosenVertices, TextSymbolizer textSymbolizer) {
+        Way way = new Way(chosenVertices);
         way.tags.put("daw", "replaced");
-        SymMeta drawables = textSymbolizer.toDrawable(way, pointList);
-        textSymbolizer.draw(drawables);
+        SymMeta drawables = textSymbolizer.toDrawable(way);
+        drawables.draw(config);
+    }
+
+    void drawPolygonSymbolizer(float[] chosenVertices, PolygonSymbolizer polygonSymbolizer) {
+        Way way = new Way(chosenVertices);
+        SymMeta drawables = polygonSymbolizer.toDrawable(way);
+        drawables.draw(config);
     }
 
     void testTextSymbolizer() {
@@ -578,10 +463,11 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
         TextSymbolizer textSymbolizer = new TextSymbolizer(
                 config,
-                "[daw] + ' dawdawd'",
+                "'abc'",
                 "0",
                 "0",
                 "0",
+                "12",
                 "0",
                 "70",
                 null,
@@ -591,9 +477,10 @@ public class TestRenderer implements GLSurfaceView.Renderer {
                 null,
                 null,
                 null,
+                null,
                 "15",
-                "#00ff00",
-                "0"
+                "rgba(255, 255, 255, 0.6)",
+                "1"
         );
 
         LineSymbolizer lineSymbolizer = new LineSymbolizer(
@@ -607,31 +494,49 @@ public class TestRenderer implements GLSurfaceView.Renderer {
                 "0"
         );
 
-        drawLineSymbolizer(chosenVertices, lineSymbolizer, false);
-        drawTextSymbolizer(chosenVertices, textSymbolizer, true);
+        TextSymbolizer textSymbolizer2 = new TextSymbolizer(
+                config,
+                "'a b c'",
+                "0",
+                "0",
+                "0",
+                "12",
+                "0",
+                "70",
+                null,
+                null,
+                "point",
+                null,
+                null,
+                null,
+                "0",
+                null,
+                "11",
+                "rgba(255, 255, 255, 0.6)",
+                "1"
+        );
+
+        PolygonSymbolizer polygonSymbolizer = new PolygonSymbolizer(config, "#00ff00", "1");
+
+        drawLineSymbolizer(chosenVertices, lineSymbolizer);
+        drawTextSymbolizer(chosenVertices, textSymbolizer);
+//        drawPolygonSymbolizer(vertices, polygonSymbolizer);
+//        drawTextSymbolizer(vertices, textSymbolizer2);
     }
 
     @Override
     public void onDrawFrame(GL10 glUnused) {
-        mFramebuffer.bind();
-        GLES20.glViewport(0, 0, mFramebuffer.getWidth(), mFramebuffer.getHeight()); // Set the viewport to the offscreen framebuffer size
-//        GLES20.glEnable(GLES20.GL_DEPTH_TEST);
+//        mFramebuffer.bind();
+//        GLES20.glViewport(0, 0, mFramebuffer.getWidth(), mFramebuffer.getHeight());
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_STENCIL_BUFFER_BIT);
 
-//        builder.draw();
-//        testStroke();
-//        testText();
-//        testClosedShape();
 //        testLineSymbolizer();
 //        testTextSymbolizer();
-        for (Layer layer : styleParser.layers) {
-            layer.draw();
-        }
+        mapView.draw();
 
-        // Bind the default framebuffer and render the full-screen quad
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
-        GLES20.glViewport(0, 0, config.getWidth(), config.getHeight()); // Set the viewport back to the screen size
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-        mFullScreenQuad.draw(mFramebuffer.getTextureId());
+//        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+//        GLES20.glViewport(0, 0, config.getWidth(), config.getHeight());
+//        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+//        mFullScreenQuad.draw(mFramebuffer.getTextureId());
     }
 }

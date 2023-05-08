@@ -9,11 +9,10 @@ import com.hcmut.test.R;
 import com.hcmut.test.utils.Config;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 
 @SuppressLint("NewApi")
-public class DownsampleShaderProgram extends ShaderProgram {
+public class FrameShaderProgram extends ShaderProgram {
     public static final String A_POSITION = "a_Position";
     public static final String A_TEXCOORD = "a_TexCoord";
     public static final String U_TEXTURE_UNIT = "u_TextureUnit";
@@ -25,9 +24,9 @@ public class DownsampleShaderProgram extends ShaderProgram {
     public static final String U_MUL_REDUCE = "u_MulReduce";
     public static final String U_MIN_REDUCE = "u_MinReduce";
     public static final String U_MAX_SPAN = "u_MaxSpan";
-    private static final int SHOW_EDGES = 1;
-    private static final int FXAA_ON = 1;
-    private static final float LUMA_THRESHOLD = 0.5f;
+    private static final int SHOW_EDGES = 0;
+    private static final int FXAA_ON = 0;
+    private static final float LUMA_THRESHOLD = 0.75f;
     private static final float MUL_REDUCE = 1f / 8f;
     private static final float MIN_REDUCE = 0.1f / 128f;
     private static final float MAX_SPAN = 8f;
@@ -39,11 +38,8 @@ public class DownsampleShaderProgram extends ShaderProgram {
     };
     public static final int TOTAL_VERTEX_ATTRIB_COUNT = Arrays.stream(VERTEX_ATTRIBS).reduce(0, Integer::sum);
     private static final List<VertexAttrib> VERTEX_ATTRIB_LIST = getVertexAttribs(VERTEX_ATTRIB_NAMES, VERTEX_ATTRIBS);
-    private final Config config;
-
-    public DownsampleShaderProgram(Config config) {
-        super(config.context, R.raw.down_sampler_vert, R.raw.down_sampler_frag2);
-        this.config = config;
+    public FrameShaderProgram(Config config) {
+        super(config, R.raw.frame_vert, R.raw.frame_frag);
     }
 
     @Override

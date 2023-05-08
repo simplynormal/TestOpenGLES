@@ -1,7 +1,6 @@
 package com.hcmut.test.mapnik.symbolizer;
 
 import android.annotation.SuppressLint;
-import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PathMeasure;
@@ -13,6 +12,7 @@ import android.util.Pair;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.hcmut.test.algorithm.CoordinateTransform;
 import com.hcmut.test.algorithm.StrokeGenerator;
 import com.hcmut.test.data.VertexArray;
 import com.hcmut.test.geometry.LineStrip;
@@ -21,9 +21,9 @@ import com.hcmut.test.geometry.PointList;
 import com.hcmut.test.geometry.Polygon;
 import com.hcmut.test.geometry.Triangle;
 import com.hcmut.test.geometry.TriangleStrip;
-import com.hcmut.test.osm.Element;
-import com.hcmut.test.programs.ColorShaderProgram;
-import com.hcmut.test.programs.ShaderProgram;
+import com.hcmut.test.osm.Way;
+import com.hcmut.test.programs.LineTextShaderProgram;
+import com.hcmut.test.programs.PointTextShaderProgram;
 import com.hcmut.test.utils.Config;
 
 import java.util.ArrayList;
@@ -34,24 +34,120 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @SuppressLint("NewApi")
 public class TextSymbolizer extends Symbolizer {
+    private static class TextDrawable {
+        public static final float DEFAULT_FONT_SIZE = 10;
+        private static final Paint PAINT = new Paint();
+        private static Typeface TYPEFACE = null;
+        private static Point TEXT_CENTER = null;
+
+        static {
+            PAINT.setTextSize(DEFAULT_FONT_SIZE);
+        }
+
+        public static Point getTextCenter() {
+            return TEXT_CENTER;
+        }
+
+        private final TextSymbolizer textSymbolizer;
+        public final List<Polygon> polygons;
+        public final float textWidth;
+        public final String character;
+
+        public TextDrawable(TextSymbolizer textSymbolizer, String character) {
+            float lengthPerPixel = textSymbolizer.config.getLengthPerPixel();
+            if (TYPEFACE == null) {
+                TYPEFACE = Typeface.createFromAsset(textSymbolizer.config.context.getAssets(), "NotoSans-Regular.ttf");
+                PAINT.setTypeface(TYPEFACE);
+                TEXT_CENTER = new Point(0, (PAINT.ascent() + PAINT.descent()) / 2).scale(lengthPerPixel);
+            }
+            float textWidth = PAINT.measureText(character) * lengthPerPixel;
+            Path charPath = new Path();
+            PAINT.getTextPath(character, 0, character.length(), 0, 0, charPath);
+            this.polygons = textPathToPolygons(charPath, lengthPerPixel);
+            this.textWidth = textWidth;
+            this.textSymbolizer = textSymbolizer;
+            this.character = character;
+        }
+
+        private static List<Polygon> textPathToPolygons(Path path, float scale) {
+            List<Polygon> polygons = new ArrayList<>();
+            PathMeasure pathMeasure = new PathMeasure(path, false);
+
+            float[] pos = new float[2];
+            float[] tan = new float[2];
+
+            Path prevPath = null;
+            Path curPath;
+
+            boolean done = false;
+            while (!done) {
+                List<Point> points = new ArrayList<>();
+                float length = pathMeasure.getLength();
+                curPath = new Path();
+                pathMeasure.getSegment(0, length, curPath, true);
+                float dist = length / (float) TextSymbolizer.NUM_POINTS_PER_TEXT_PATH;
+                for (float i = 0; i < length; i += dist) {
+                    pathMeasure.getPosTan(i, pos, tan);
+                    points.add(new Point(pos[0], -pos[1]).scale(scale));
+                }
+
+                if (points.size() < 3) {
+                    done = !pathMeasure.nextContour();
+                    continue;
+                }
+
+                if (points.get(points.size() - 1) != points.get(0)) {
+                    points.add(points.get(0));
+                }
+
+                if (prevPath != null) {
+                    // check if prevPath is inside curPath
+                    RectF prevRect = new RectF();
+                    prevPath.computeBounds(prevRect, true);
+                    RectF curRect = new RectF();
+                    curPath.computeBounds(curRect, true);
+                    if (prevRect.contains(curRect)) {
+                        polygons.get(polygons.size() - 1).addHole(points);
+                    } else {
+                        polygons.add(new Polygon(points));
+                        prevPath = curPath;
+                    }
+                } else {
+                    polygons.add(new Polygon(points));
+                    prevPath = curPath;
+                }
+
+                done = !pathMeasure.nextContour();
+            }
+
+
+            return polygons;
+        }
+    }
+
     private static final int NUM_POINTS_PER_TEXT_PATH = 40;
-    private static class TextSymMeta extends SymMeta {
-        private float[] triDrawable;
-        private float[] triStripDrawable;
-        private int firstHalfCount = 0;
+    private static Typeface tf = null;
+    private static Typeface tf1 = null;
+    private static final HashMap<String, TextDrawable> textCache = new HashMap<>();
+
+    private static class LineTextSymMeta extends SymMeta {
+        protected float[] triDrawable;
+        protected float[] triStripDrawable;
+        protected int firstHalfCount = 0;
         protected VertexArray vertexArray = null;
 
-        public TextSymMeta() {
+        public LineTextSymMeta() {
             this.triDrawable = new float[0];
             this.triStripDrawable = new float[0];
         }
 
-        public TextSymMeta(float[] triDrawable, float[] triStripDrawable) {
-            this.triDrawable = triDrawable;
-            this.triStripDrawable = triStripDrawable;
+        public LineTextSymMeta(float[] triDrawable, float[] triStripDrawable) {
+            this.triDrawable = triDrawable == null ? new float[0] : triDrawable;
+            this.triStripDrawable = triStripDrawable == null ? new float[0] : triStripDrawable;
         }
 
         @Override
@@ -61,27 +157,89 @@ public class TextSymbolizer extends Symbolizer {
 
         @Override
         public SymMeta append(SymMeta other) {
-            if (!(other instanceof TextSymMeta)) return this;
-            TextSymMeta otherLineSymMeta = (TextSymMeta) other;
+            if (!(other instanceof LineTextSymMeta)) return this;
+            LineTextSymMeta otherLineSymMeta = (LineTextSymMeta) other;
             float[] triDrawable = appendRegular(this.triDrawable, otherLineSymMeta.triDrawable);
-            float[] triStripDrawable = appendTriangleStrip(this.triStripDrawable, otherLineSymMeta.triStripDrawable, ColorShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
-            return new TextSymMeta(triDrawable, triStripDrawable);
+            float[] triStripDrawable = appendTriangleStrip(this.triStripDrawable, otherLineSymMeta.triStripDrawable, LineTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
+            return new LineTextSymMeta(triDrawable, triStripDrawable);
         }
 
-        private void draw(ShaderProgram shaderProgram) {
+        private void draw(LineTextShaderProgram shaderProgram) {
             if (isEmpty()) return;
             if (vertexArray == null) {
                 float[] drawable = appendRegular(triStripDrawable, triDrawable);
-                firstHalfCount = triStripDrawable.length / ColorShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT;
+                firstHalfCount = triStripDrawable.length / LineTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT;
                 vertexArray = new VertexArray(shaderProgram, drawable);
                 triDrawable = null;
                 triStripDrawable = null;
             }
             shaderProgram.useProgram();
+            Point textCenter = TextDrawable.getTextCenter();
+            GLES20.glUniform2f(shaderProgram.getUniformLocation(LineTextShaderProgram.U_TEXT_CENTER), textCenter.x, textCenter.y);
             vertexArray.setDataFromVertexData();
             int pointCount = vertexArray.getVertexCount();
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, firstHalfCount);
             GLES20.glDrawArrays(GLES20.GL_TRIANGLES, firstHalfCount, pointCount - firstHalfCount);
+        }
+
+        @Override
+        public void draw(Config config) {
+            draw(config.getLineTextShaderProgram());
+        }
+    }
+
+    private static class PointTextSymMeta extends SymMeta {
+        protected float[] triDrawable;
+        protected float[] triStripDrawable;
+        protected int firstHalfCount = 0;
+        protected VertexArray vertexArray = null;
+
+        public PointTextSymMeta() {
+            this.triDrawable = new float[0];
+            this.triStripDrawable = new float[0];
+        }
+
+        public PointTextSymMeta(float[] triDrawable, float[] triStripDrawable) {
+            this.triDrawable = triDrawable == null ? new float[0] : triDrawable;
+            this.triStripDrawable = triStripDrawable == null ? new float[0] : triStripDrawable;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return vertexArray == null && ((triDrawable == null || triDrawable.length == 0) && (triStripDrawable == null || triStripDrawable.length == 0));
+        }
+
+        @Override
+        public SymMeta append(SymMeta other) {
+            if (!(other instanceof PointTextSymMeta)) return this;
+            PointTextSymMeta otherLineSymMeta = (PointTextSymMeta) other;
+            float[] triDrawable = appendRegular(this.triDrawable, otherLineSymMeta.triDrawable);
+            float[] triStripDrawable = appendTriangleStrip(this.triStripDrawable, otherLineSymMeta.triStripDrawable, PointTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
+            return new PointTextSymMeta(triDrawable, triStripDrawable);
+        }
+
+        private void draw(PointTextShaderProgram shaderProgram) {
+            if (isEmpty()) return;
+            if (vertexArray == null) {
+                float[] drawable = appendRegular(triStripDrawable, triDrawable);
+                firstHalfCount = triStripDrawable.length / PointTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT;
+                vertexArray = new VertexArray(shaderProgram, drawable);
+                triDrawable = null;
+                triStripDrawable = null;
+            }
+            shaderProgram.useProgram();
+            Point textCenter = TextDrawable.getTextCenter();
+            GLES20.glUniform2f(shaderProgram.getUniformLocation(PointTextShaderProgram.U_TEXT_CENTER), textCenter.x, textCenter.y);
+
+            vertexArray.setDataFromVertexData();
+            int pointCount = vertexArray.getVertexCount();
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, firstHalfCount);
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLES, firstHalfCount, pointCount - firstHalfCount);
+        }
+
+        @Override
+        public void draw(Config config) {
+            draw(config.getPointTextShaderProgram());
         }
     }
 
@@ -89,6 +247,7 @@ public class TextSymbolizer extends Symbolizer {
      * textName
      * dx
      * dy
+     * margin
      * spacing
      * repeatDistance
      * maxCharAngleDelta
@@ -99,6 +258,7 @@ public class TextSymbolizer extends Symbolizer {
      * horizontalAlignment
      * justifyAlignment
      * wrapWidth
+     * fontsetName
      * size
      * haloFill
      * haloRadius
@@ -107,6 +267,7 @@ public class TextSymbolizer extends Symbolizer {
     private final String textExprString;
     private final float dx;
     private final float dy;
+    private final float margin;
     private final float spacing;
     private final float repeatDistance;
     private final float maxCharAngleDelta;
@@ -116,13 +277,12 @@ public class TextSymbolizer extends Symbolizer {
     private final String horizontalAlignment;
     private final String justifyAlignment;
     private final float wrapWidth;
+    private final Typeface font;
     private final float size;
     private final float[] haloFill;
     private final float haloRadius;
-    private static Typeface tf = null;
-    private static Typeface tf1 = null;
 
-    public TextSymbolizer(Config config, @Nullable String textExpr, @Nullable String dx, @Nullable String dy, @Nullable String spacing, @Nullable String repeatDistance, @Nullable String maxCharAngleDelta, @Nullable String fill, @Nullable String opacity, @Nullable String placement, @Nullable String verticalAlignment, @Nullable String horizontalAlignment, @Nullable String justifyAlignment, @Nullable String wrapWidth, @Nullable String size, @Nullable String haloFill, @Nullable String haloRadius) {
+    public TextSymbolizer(Config config, @Nullable String textExpr, @Nullable String dx, @Nullable String dy, @Nullable String margin, @Nullable String spacing, @Nullable String repeatDistance, @Nullable String maxCharAngleDelta, @Nullable String fill, @Nullable String opacity, @Nullable String placement, @Nullable String verticalAlignment, @Nullable String horizontalAlignment, @Nullable String justifyAlignment, @Nullable String wrapWidth, @Nullable String fontsetName, @Nullable String size, @Nullable String haloFill, @Nullable String haloRadius) {
         super(config);
         if (tf == null && tf1 == null) {
             tf = Typeface.createFromAsset(config.context.getAssets(), "NotoSans-Regular.ttf");
@@ -132,6 +292,7 @@ public class TextSymbolizer extends Symbolizer {
         this.textExprEvaluator = createTextExprEvaluator(textExpr);
         this.dx = dx == null ? 0 : Float.parseFloat(dx);
         this.dy = dy == null ? 0 : Float.parseFloat(dy);
+        this.margin = margin == null ? 0 : Float.parseFloat(margin);
         this.spacing = spacing == null ? 0 : Float.parseFloat(spacing);
         this.repeatDistance = repeatDistance == null ? 0 : Float.parseFloat(repeatDistance);
         this.maxCharAngleDelta = maxCharAngleDelta == null ? 22.5f : Float.parseFloat(maxCharAngleDelta);
@@ -141,6 +302,7 @@ public class TextSymbolizer extends Symbolizer {
         this.horizontalAlignment = parseHorizontalAlignment(horizontalAlignment);
         this.justifyAlignment = parseJustifyAlignment(justifyAlignment);
         this.wrapWidth = wrapWidth == null ? 0 : Float.parseFloat(wrapWidth);
+        this.font = fontsetName == null ? tf : fontsetName.equals("fontset-1") ? tf1 : tf;
         this.size = size == null ? 10 : Float.parseFloat(size);
         this.haloFill = parseColorString(haloFill, 1);
         this.haloRadius = haloRadius == null ? 0 : Float.parseFloat(haloRadius);
@@ -231,67 +393,121 @@ public class TextSymbolizer extends Symbolizer {
         switch (justifyAlignment == null ? "auto" : justifyAlignment) {
             case "left":
                 return "left";
-            case "center":
-                return "center";
             case "right":
                 return "right";
             default:
-                switch (horizontalAlignment) {
-                    case "left":
-                        return "left";
-                    case "right":
-                        return "right";
-                    default:
-                        return "center";
-                }
+                return "center";
         }
+    }
+
+    private String getName(Way Way) {
+        return textExprEvaluator.apply(Way.tags);
     }
 
     @Override
-    public SymMeta toDrawable(Element element, PointList shape) {
-        String name = textExprEvaluator.apply(element.tags);
-        if (name == null) {
-            return new TextSymMeta();
-        }
+    public SymMeta toDrawable(Way way) {
         Paint paint = new Paint();
         paint.setTypeface(tf);
         paint.setTextSize(size);
-        List<Point> points = shape.points;
+
+        float originX = config.getOriginX();
+        float originY = config.getOriginY();
+        float scale = CoordinateTransform.getScalePixel(config.getScaleDenominator()) * config.getLengthPerPixel();
+        PointList shape = way.isClosed()
+                ? way.toPolygon(originX, originY, scale)
+                : way.toPointList(originX, originY, scale);
 
         switch (placement) {
             case "line":
-                return drawLinePlacement(name, points, paint);
+                return drawLinePlacement(way, shape, paint);
+            case "point":
+                return drawPointPlacement(way, shape, paint);
         }
 
-        return new TextSymMeta();
+        return new LineTextSymMeta();
     }
 
-    private float[] drawLineStrip(LineStrip lineStrip, float strokeWidth, float[] strokeColor) {
-        if (lineStrip == null || strokeWidth <= 0) {
-            return new float[0];
+    private TextDrawable getText(String c) {
+        TextDrawable textDrawable = textCache.get(c);
+        if (textDrawable == null) {
+            textDrawable = new TextDrawable(this, c);
+            textCache.put(c, textDrawable);
         }
-        StrokeGenerator.Stroke stroke = StrokeGenerator.generateStroke(lineStrip
-                , 8, strokeWidth / 2, StrokeGenerator.StrokeLineCap.ROUND);
-        TriangleStrip triangleStrip = stroke.toTriangleStrip();
-        return ColorShaderProgram.toVertexData(triangleStrip, strokeColor);
+        return textDrawable;
     }
 
-    private SymMeta drawLinePlacement(String name, List<Point> points, Paint paint) {
-        TextSymMeta rv = new TextSymMeta();
-        GetLinePathResult result = getLinePath(paint, name, points);
-        if (result == null) {
+    private float getTextWidth(String c, float fontSize) {
+        float textWidth = 0;
+        for (int i = 0; i < c.length(); i++) {
+            TextDrawable textDrawable = getText(c.substring(i, i + 1));
+            textWidth += textDrawable.textWidth * fontSize / TextDrawable.DEFAULT_FONT_SIZE;
+        }
+        return textWidth;
+    }
+
+    private SymMeta drawPointPlacement(Way way, PointList shape, Paint paint) {
+        PointTextSymMeta rv = new PointTextSymMeta();
+        if (way.isAlreadyDrawnTextPoint()) {
             return rv;
         }
+        way.setAlreadyDrawnTextPoint(true);
 
-        List<Polygon> polygons = createTextPathOnPath(result.path, name, result.hOffset, result.vOffset, paint);
-
+        String name = getName(way);
+        if (name == null) {
+            return rv;
+        }
         float lengthPerPixel = config.getLengthPerPixel();
-        for (Polygon polygon : polygons) {
-            if (polygon != null) {
-                Polygon transformedPolygon = polygon.transform(0, 0, lengthPerPixel);
-                List<Triangle> curTriangulatedTriangles = transformedPolygon.triangulate();
+        Point center;
+        if (shape instanceof Polygon) {
+            center = ((Polygon) shape).getCentroid();
+        } else {
+            center = shape.points.get(0).equals(shape.points.get(shape.points.size() - 1)) ? new Polygon(shape.points).getCentroid() : shape.points.stream().reduce(new Point(0, 0), (a, b) -> new Point(a.x + b.x, a.y + b.y)).scale(1f / shape.points.size());
+        }
 
-                float[] curTri = ColorShaderProgram.toVertexData(new ArrayList<>() {
+        float textWidth = getTextWidth(name, size);
+        float width = wrapWidth == 0 ? (textWidth - 2 * margin * lengthPerPixel) : wrapWidth * lengthPerPixel;
+        float currentWidth = 0;
+        float currentHeight = 0;
+        float addOffsetY = paint.ascent() * lengthPerPixel;
+        float heightIncrement = paint.getFontSpacing() * lengthPerPixel;
+
+        String[] lines = name.split("\\\\n");
+        List<Polygon> polygons = new ArrayList<>();
+        List<Point> offsets = new ArrayList<>();
+        List<Integer> indices = new ArrayList<>();
+
+        for (String line : lines) {
+            for (int i = 0; i < line.length(); i++) {
+                TextDrawable textDrawable = getText(line.substring(i, i + 1));
+                float charWidth = textDrawable.textWidth * size / TextDrawable.DEFAULT_FONT_SIZE;
+                if (currentWidth + charWidth > width) {
+                    currentWidth = 0;
+                    currentHeight -= heightIncrement;
+                }
+                if (textDrawable.polygons.size() > 0) {
+                    offsets.add(new Point(currentWidth, currentHeight + addOffsetY));
+                    indices.add(polygons.size());
+                    polygons.addAll(textDrawable.polygons);
+                }
+                currentWidth += charWidth;
+            }
+            currentWidth = 0;
+            currentHeight -= heightIncrement;
+        }
+
+        offsets = alignText(offsets, center, width, currentHeight);
+
+        int offsetIndex = 0;
+        for (int i = 0; i < polygons.size(); i++) {
+            Polygon polygon = polygons.get(i);
+            if (offsetIndex + 1 < indices.size() && i == indices.get(offsetIndex + 1)) {
+                offsetIndex++;
+            }
+            Point offset = offsets.get(offsetIndex);
+            if (polygon != null) {
+                List<Triangle> curTriangulatedTriangles = polygon.triangulate();
+
+                float[] curTri = PointTextShaderProgram.toVertexData(new ArrayList<>() {
                     {
                         for (Triangle triangle : curTriangulatedTriangles) {
                             add(triangle.p1);
@@ -299,53 +515,160 @@ public class TextSymbolizer extends Symbolizer {
                             add(triangle.p3);
                         }
                     }
-                }, fillColor);
+                }, size, offset, center, fillColor);
                 float strokeWidth = haloRadius * lengthPerPixel;
-                float[] curTriStrip = drawLineStrip(new LineStrip(transformedPolygon), strokeWidth, haloFill);
-                for (Polygon hole : transformedPolygon.holes) {
-                    curTriStrip = SymMeta.appendTriangleStrip(curTriStrip, drawLineStrip(new LineStrip(hole), strokeWidth, haloFill), ColorShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
+                float[] curTriStrip = drawPointTextLineStrip(new LineStrip(polygon), size, offset, center, strokeWidth, haloFill);
+                for (Polygon hole : polygon.holes) {
+                    curTriStrip = SymMeta.appendTriangleStrip(curTriStrip, drawPointTextLineStrip(new LineStrip(hole), size, offset, center, strokeWidth, haloFill), PointTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
                 }
 
-                rv = (TextSymMeta) rv.append(new TextSymMeta(curTri, curTriStrip));
+                rv = (PointTextSymMeta) rv.append(new PointTextSymMeta(curTri, curTriStrip));
             }
         }
 
         return rv;
     }
 
+    private float[] drawPointTextLineStrip(LineStrip lineStrip, float fontSize, Point offset, Point center, float strokeWidth, float[] strokeColor) {
+        if (lineStrip == null || strokeWidth <= 0) {
+            return new float[0];
+        }
+        StrokeGenerator.Stroke lineStroke = StrokeGenerator.generateStroke(lineStrip
+                , 8, strokeWidth / 2, StrokeGenerator.StrokeLineCap.ROUND);
+        TriangleStrip triangleStrip = lineStroke.toTriangleStrip();
+        return PointTextShaderProgram.toVertexData(triangleStrip, fontSize, offset, center, strokeColor);
+    }
+
+
+    private List<Point> alignText(List<Point> offsets, Point center, float width, float height) {
+        float translateX;
+        float translateY;
+        switch (horizontalAlignment) {
+            case "middle":
+                translateX = center.x - width / 2;
+                break;
+            case "right":
+                translateX = center.x - width;
+                break;
+            default:
+                translateX = 0;
+        }
+
+        switch (verticalAlignment) {
+            case "middle":
+                translateY = center.y - height / 2;
+                break;
+            case "bottom":
+                translateY = center.y - height;
+                break;
+            default:
+                translateY = 0;
+        }
+
+        return offsets.stream().map(offset -> new Point(offset.x + translateX + dx, offset.y + translateY + dy)).collect(Collectors.toList());
+    }
+
+    private SymMeta drawLinePlacement(Way way, PointList shape, Paint paint) {
+        LineTextSymMeta rv = new LineTextSymMeta();
+        String name = getName(way);
+        if (name == null) {
+            return rv;
+        }
+        List<GetLinePathResult> results = getLinePath(paint, name, shape.points);
+        if (results == null) {
+            return rv;
+        }
+
+        for (GetLinePathResult result : results) {
+            CreateTextPathOnPathResult res = createTextPathOnPath(result.path, name, result.hOffset, result.vOffset, paint);
+
+            if (res == null) {
+                continue;
+            }
+
+            int offsetIndex = 0;
+            float lengthPerPixel = config.getLengthPerPixel();
+            for (int i = 0; i < res.polygons.size(); i++) {
+                Polygon polygon = res.polygons.get(i);
+                float firstAngle = res.angles.get(0);
+                if (offsetIndex + 1 < res.indices.size() && i == res.indices.get(offsetIndex + 1)) {
+                    offsetIndex++;
+                }
+                float angle = res.angles.get(offsetIndex);
+                Point offset = res.offsets.get(offsetIndex);
+                float altAngle = res.altAngles.get(offsetIndex);
+                Point altOffset = res.altOffsets.get(offsetIndex);
+                if (polygon != null) {
+                    List<Triangle> curTriangulatedTriangles = polygon.triangulate();
+
+                    float[] curTri = LineTextShaderProgram.toVertexData(new ArrayList<>() {
+                        {
+                            for (Triangle triangle : curTriangulatedTriangles) {
+                                add(triangle.p1);
+                                add(triangle.p2);
+                                add(triangle.p3);
+                            }
+                        }
+                    }, size, angle, offset, altAngle, altOffset, firstAngle, fillColor);
+                    float strokeWidth = haloRadius * lengthPerPixel;
+                    float[] curTriStrip = drawLineTextLineStrip(new LineStrip(polygon), size, angle, offset, altAngle, altOffset, firstAngle, strokeWidth, haloFill);
+                    for (Polygon hole : polygon.holes) {
+                        curTriStrip = SymMeta.appendTriangleStrip(curTriStrip, drawLineTextLineStrip(new LineStrip(hole), size, angle, offset, altAngle, altOffset, firstAngle, strokeWidth, haloFill), LineTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
+                    }
+
+                    rv = (LineTextSymMeta) rv.append(new LineTextSymMeta(curTri, curTriStrip));
+                }
+            }
+        }
+
+        return rv;
+    }
+
+    private float[] drawLineTextLineStrip(LineStrip lineStrip, float fontSize, float angle, Point offset, float altAngle, Point altOffset, float firstAngle, float strokeWidth, float[] strokeColor) {
+        if (lineStrip == null || strokeWidth <= 0) {
+            return new float[0];
+        }
+        StrokeGenerator.Stroke lineStroke = StrokeGenerator.generateStroke(lineStrip
+                , 8, strokeWidth / 2, StrokeGenerator.StrokeLineCap.ROUND);
+        TriangleStrip triangleStrip = lineStroke.toTriangleStrip();
+        return LineTextShaderProgram.toVertexData(triangleStrip, fontSize, angle, offset, altAngle, altOffset, firstAngle, strokeColor);
+    }
+
 
     private Path pointsToPath(List<Point> points) {
         Path path = new Path();
-        float lengthPerPixel = config.getLengthPerPixel();
-        path.moveTo(points.get(0).x / lengthPerPixel, points.get(0).y / lengthPerPixel);
+        path.moveTo(points.get(0).x, points.get(0).y);
         for (int i = 1; i < points.size(); i++) {
             Point p = points.get(i);
-            path.lineTo(p.x / lengthPerPixel, p.y / lengthPerPixel);
+            path.lineTo(p.x, p.y);
         }
         return path;
     }
 
-    private GetLinePathResult getLinePath(Paint paint, String text, List<Point> points) {
+    private List<GetLinePathResult> getLinePath(Paint paint, String text, List<Point> points) {
         Path path = pointsToPath(points);
-
+        float lengthPerPixel = config.getLengthPerPixel();
         PathMeasure pathMeasure = new PathMeasure(path, false);
         float pathLength = pathMeasure.getLength();
-        float textWidth = paint.measureText(text);
+        float textWidth = paint.measureText(text) * lengthPerPixel;
 
         if (textWidth > pathLength) {
             return null;
         }
 
-        float hOffset = (pathLength - textWidth) / 2;
-        float vOffset = (-paint.ascent() + paint.descent()) / 2 - paint.descent();
+        float spacing = this.spacing * lengthPerPixel;
+        int numRepetitions = spacing == 0 ? 1 : (int) Math.floor((pathLength + spacing) / (textWidth + spacing));
+        float totalSpacing = numRepetitions * textWidth + (numRepetitions - 1) * spacing;
+        float offsetEach = (pathLength - totalSpacing) / 2;
+        float vOffset = ((-paint.ascent() + paint.descent()) / 2 - paint.descent()) * lengthPerPixel;
+        List<Float> hOffsets = new ArrayList<>();
 
-        boolean isOverMaxCharAngleDelta = checkOverMaxCharAngleDelta(text, pathMeasure, paint, hOffset, maxCharAngleDelta);
-
-        if (isOverMaxCharAngleDelta) {
-            return null;
+        for (int i = 0; i < numRepetitions; i++) {
+            float hOffset = offsetEach + i * (textWidth + spacing);
+            hOffsets.add(hOffset);
         }
 
-        boolean isUpsideDown = checkUpsideDown(pathMeasure, pathLength);
+        boolean isUpsideDown = checkUpsideDown(pathMeasure, config.getRotation());
 
         if (isUpsideDown) {
             List<Point> newPoints = new ArrayList<>(points);
@@ -353,97 +676,100 @@ public class TextSymbolizer extends Symbolizer {
             path = pointsToPath(newPoints);
         }
 
-        return new GetLinePathResult(path, hOffset, vOffset);
+        Path finalPath = path;
+        return new ArrayList<>(numRepetitions) {
+            {
+                for (float hOffset : hOffsets) {
+                    add(new GetLinePathResult(finalPath, hOffset, vOffset));
+                }
+            }
+        };
     }
 
-    private List<Polygon> createTextPathOnPath(Path originalPath, String text, float hOffset, float vOffset, Paint paint) {
+    private static class CreateTextPathOnPathResult {
+        public final List<Polygon> polygons;
+        public final List<Point> offsets;
+        public final List<Float> angles;
+        public final List<Point> altOffsets;
+        public final List<Float> altAngles;
+        public final List<Integer> indices;
+
+        public CreateTextPathOnPathResult(List<Polygon> polygons, List<Point> offsets, List<Float> angles, List<Point> altOffsets, List<Float> altAngles, List<Integer> indices) {
+            this.polygons = polygons;
+            this.offsets = offsets;
+            this.angles = angles;
+            this.altOffsets = altOffsets;
+            this.altAngles = altAngles;
+            this.indices = indices;
+        }
+    }
+
+    private CreateTextPathOnPathResult createTextPathOnPath(Path originalPath, String text, float hOffset, float vOffset, Paint paint) {
         List<Polygon> polygons = new ArrayList<>();
+        List<Point> offsets = new ArrayList<>();
+        List<Float> angles = new ArrayList<>();
+        List<Point> altOffsets = new ArrayList<>();
+        List<Float> altAngles = new ArrayList<>();
+        List<Integer> indices = new ArrayList<>();
         PathMeasure pathMeasure = new PathMeasure(originalPath, false);
+        float lengthPerPixel = config.getLengthPerPixel();
+        float textWidth = paint.measureText(text) * lengthPerPixel;
         float[] pos = new float[2];
         float[] tan = new float[2];
-        float[] nextPos = new float[2];
-        float[] nextTan = new float[2];
-        float distance = hOffset;
+        float[] altPos = new float[2];
+        float[] altTan = new float[2];
+        Float prevAngle = null;
+        Float prevAltAngle = null;
+        float distance = 0;
 
         for (int i = 0; i < text.length(); i++) {
             String c = text.substring(i, i + 1);
-            float charWidth = paint.measureText(c);
-            Path charPath = new Path();
-            paint.getTextPath(c, 0, 1, 0, 0, charPath);
+            TextDrawable textDrawable = getText(c);
+            float charWidth = textDrawable.textWidth * size / TextDrawable.DEFAULT_FONT_SIZE;
 
-            pathMeasure.getPosTan(distance, pos, tan);
-            pathMeasure.getPosTan(distance + charWidth, nextPos, nextTan);
+            pathMeasure.getPosTan(hOffset + distance, pos, tan);
+            pathMeasure.getPosTan(hOffset + textWidth - distance, altPos, altTan);
 
+            Point offset = new Point(pos[0] + tan[1] * vOffset, pos[1] - tan[0] * vOffset);
+            Point altOffset = new Point(altPos[0] - altTan[1] * vOffset, altPos[1] + altTan[0] * vOffset);
             float angle = (float) (Math.atan2(tan[1], tan[0]) * 180 / Math.PI);
-            Matrix matrix = new Matrix();
-            matrix.setScale(1, -1);
-            matrix.postRotate(angle);
-            matrix.postTranslate(pos[0], pos[1]);
-            matrix.postTranslate(tan[1] * vOffset, -tan[0] * vOffset);
-            charPath.transform(matrix);
+            float altAngle = (float) (Math.atan2(altTan[1], altTan[0]) * 180 / Math.PI);
+            altAngle = (altAngle + 180) % 360;
 
-            List<Polygon> p = textPathToPolygons(charPath, NUM_POINTS_PER_TEXT_PATH);
-            polygons.addAll(p);
+            if (prevAngle != null) {
+                float angleDelta = Math.abs(angle - prevAngle);
+                float altAngleDelta = Math.abs(altAngle - prevAltAngle);
+
+                if (angleDelta > 180) {
+                    angleDelta = 360 - angleDelta;
+                }
+
+                if (altAngleDelta > 180) {
+                    altAngleDelta = 360 - altAngleDelta;
+                }
+
+                if (angleDelta > maxCharAngleDelta || altAngleDelta > maxCharAngleDelta) {
+                    return null;
+                }
+            }
+
+            prevAngle = angle;
+            prevAltAngle = altAngle;
+
+
+            if (textDrawable.polygons.size() > 0) {
+                offsets.add(offset);
+                altOffsets.add(altOffset);
+                angles.add(angle);
+                altAngles.add(altAngle);
+                indices.add(polygons.size());
+                polygons.addAll(textDrawable.polygons);
+            }
 
             distance += charWidth;
         }
 
-        return polygons;
-    }
-
-    private static List<Polygon> textPathToPolygons(Path path, float numPoints) {
-        List<Polygon> polygons = new ArrayList<>();
-        PathMeasure pathMeasure = new PathMeasure(path, false);
-
-        float[] pos = new float[2];
-        float[] tan = new float[2];
-
-        Path prevPath = null;
-        Path curPath;
-
-        boolean done = false;
-        while (!done) {
-            List<Point> points = new ArrayList<>();
-            float length = pathMeasure.getLength();
-            curPath = new Path();
-            pathMeasure.getSegment(0, length, curPath, true);
-            float dist = length / numPoints;
-            for (float i = 0; i < length; i += dist) {
-                pathMeasure.getPosTan(i, pos, tan);
-                points.add(new Point(pos[0], pos[1]));
-            }
-
-            if (points.size() < 3) {
-                done = !pathMeasure.nextContour();
-                continue;
-            }
-
-            if (points.get(points.size() - 1) != points.get(0)) {
-                points.add(points.get(0));
-            }
-
-            if (prevPath != null) {
-                // check if prevPath is inside curPath
-                RectF prevRect = new RectF();
-                prevPath.computeBounds(prevRect, true);
-                RectF curRect = new RectF();
-                curPath.computeBounds(curRect, true);
-                if (prevRect.contains(curRect)) {
-                    polygons.get(polygons.size() - 1).addHole(points);
-                } else {
-                    polygons.add(new Polygon(points));
-                    prevPath = curPath;
-                }
-            } else {
-                polygons.add(new Polygon(points));
-                prevPath = curPath;
-            }
-
-            done = !pathMeasure.nextContour();
-        }
-
-
-        return polygons;
+        return new CreateTextPathOnPathResult(polygons, offsets, angles, altOffsets, altAngles, indices);
     }
 
     private static class GetLinePathResult {
@@ -458,13 +784,6 @@ public class TextSymbolizer extends Symbolizer {
         }
     }
 
-    @Override
-    public void draw(SymMeta symMeta) {
-        if (!(symMeta instanceof TextSymMeta)) return;
-        TextSymMeta textSymMeta = (TextSymMeta) symMeta;
-        textSymMeta.draw(config.colorShaderProgram);
-    }
-
     @NonNull
     @Override
     public String toString() {
@@ -475,42 +794,23 @@ public class TextSymbolizer extends Symbolizer {
                 ", dx=" + dx +
                 ", dy=" + dy +
                 ", fillColor=" + Arrays.toString(fillColor) +
+                ", haloFill=" + Arrays.toString(haloFill) +
                 ", verticalAlignment='" + verticalAlignment + '\'' +
                 ", horizontalAlignment='" + horizontalAlignment + '\'' +
                 '}';
     }
 
-    public static boolean checkOverMaxCharAngleDelta(String text, PathMeasure pathMeasure, Paint paint, float hOffset, float maxCharAngleDelta) {
-        if (maxCharAngleDelta <= 0) return false;
-
-        float distance = hOffset;
-        float prevAngle = 0;
-
+    private static boolean checkUpsideDown(PathMeasure pathMeasure, float at, float rotation) {
         float[] pos = new float[2];
         float[] tan = new float[2];
 
-        for (int i = 0; i < text.length(); i++) {
-            String character = text.substring(i, i + 1);
-            float currentWidth = paint.measureText(character);
-            pathMeasure.getPosTan(distance + currentWidth / 2, pos, tan);
-            float angle = (float) Math.atan2(tan[1], tan[0]) * 180 / (float) Math.PI;
-            if (i > 0 && Math.abs(angle - prevAngle) > maxCharAngleDelta) {
-                return true;
-            }
-            prevAngle = angle;
-            distance += currentWidth;
-        }
-
-        return false;
-    }
-
-    private static boolean checkUpsideDown(PathMeasure pathMeasure, float pathLength) {
-        float[] pos = new float[2];
-        float[] tan = new float[2];
-
-        pathMeasure.getPosTan(pathLength / 2, pos, tan);
-        float angle = (float) Math.toDegrees(Math.atan2(tan[1], tan[0]));
+        pathMeasure.getPosTan(at, pos, tan);
+        float angle = (float) Math.toDegrees(Math.atan2(tan[1], tan[0])) + rotation;
 
         return angle > 90 || angle < -90;
+    }
+
+    private static boolean checkUpsideDown(PathMeasure pathMeasure, float rotation) {
+        return checkUpsideDown(pathMeasure, pathMeasure.getLength() / 2, rotation);
     }
 }

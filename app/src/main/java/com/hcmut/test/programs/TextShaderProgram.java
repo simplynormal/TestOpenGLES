@@ -23,13 +23,17 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.hcmut.test.R;
+import com.hcmut.test.geometry.Vector;
+import com.hcmut.test.utils.Config;
 
 import java.util.List;
 
 public class TextShaderProgram extends ShaderProgram {
     public static final String U_PROJECTION_MATRIX = "u_ProjectionMatrix";
     public static final String U_MODEL_VIEW_MATRIX = "u_ModelViewMatrix";
-    public static final String U_TRANSFORM_MATRIX = "u_TransformMatrix";
+    public static final String U_ROTATION_ANGLE = "u_RotationAngle";
+    public static final String U_SCALE = "u_Scale";
+    public static final String U_TRANSLATION = "u_Translation";
     public static final String U_TEXTURE_UNIT = "u_TextureUnit";
     public static final String A_POSITION = "a_Position";
     public static final String A_TEX_COORD = "a_TexCoord";
@@ -43,13 +47,11 @@ public class TextShaderProgram extends ShaderProgram {
     private static final List<VertexAttrib> VERTEX_ATTRIB_LIST = getVertexAttribs(VERTEX_ATTRIB_NAMES, VERTEX_ATTRIBS);
     private final float[] projectionMatrix;
     private final float[] modelViewMatrix;
-    private final float[] transformMatrix;
 
-    public TextShaderProgram(Context context, float[] projectionMatrix, float[] modelViewMatrix, float[] transformMatrix) {
-        super(context, R.raw.text_vert, R.raw.text_frag);
+    public TextShaderProgram(Config config, float[] projectionMatrix, float[] modelViewMatrix) {
+        super(config, R.raw.text_vert, R.raw.text_frag);
         this.projectionMatrix = projectionMatrix;
         this.modelViewMatrix = modelViewMatrix;
-        this.transformMatrix = transformMatrix;
     }
 
     @Override
@@ -61,8 +63,15 @@ public class TextShaderProgram extends ShaderProgram {
         int uModelViewMatrix = getUniformLocation(U_MODEL_VIEW_MATRIX);
         GLES20.glUniformMatrix4fv(uModelViewMatrix, 1, false, modelViewMatrix, 0);
 
-        int uTransformMatrix = getUniformLocation(U_TRANSFORM_MATRIX);
-        GLES20.glUniformMatrix4fv(uTransformMatrix, 1, false, transformMatrix, 0);
+        int uRotationAngle = getUniformLocation(U_ROTATION_ANGLE);
+        GLES20.glUniform1f(uRotationAngle, config.getRotation());
+
+        int uScale = getUniformLocation(U_SCALE);
+        GLES20.glUniform1f(uScale, config.getScale());
+
+        int uTranslation = getUniformLocation(U_TRANSLATION);
+        Vector translation = config.getTranslation();
+        GLES20.glUniform2f(uTranslation, translation.x, translation.y);
     }
 
     @Override

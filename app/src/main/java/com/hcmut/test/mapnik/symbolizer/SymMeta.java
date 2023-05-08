@@ -1,11 +1,13 @@
 package com.hcmut.test.mapnik.symbolizer;
 
+import com.hcmut.test.utils.Config;
+
 public abstract class SymMeta {
     public abstract boolean isEmpty();
-
     public abstract SymMeta append(SymMeta other);
+    public abstract void draw(Config config);
 
-    public static float[] appendTriangleStrip(float[] oldData, float[] newData, int totalVertexAttribCount) {
+    protected static float[] appendTriangleStrip(float[] oldData, float[] newData, int totalVertexAttribCount) {
         if (oldData.length == 0) return newData;
 
         boolean oldDrawableEmpty = newData.length == 0;
@@ -19,7 +21,7 @@ public abstract class SymMeta {
         return result;
     }
 
-    public static float[] appendRegular(float[] oldDrawable, float[] newDrawable) {
+    protected static float[] appendRegular(float[] oldDrawable, float[] newDrawable) {
         float[] result = new float[oldDrawable.length + newDrawable.length];
         System.arraycopy(oldDrawable, 0, result, 0, oldDrawable.length);
         System.arraycopy(newDrawable, 0, result, oldDrawable.length, newDrawable.length);
