@@ -25,10 +25,10 @@ public class FrameShaderProgram extends ShaderProgram {
     public static final String U_MIN_REDUCE = "u_MinReduce";
     public static final String U_MAX_SPAN = "u_MaxSpan";
     private static final int SHOW_EDGES = 0;
-    private static final int FXAA_ON = 0;
-    private static final float LUMA_THRESHOLD = 0.75f;
+    private static final int FXAA_ON = 1;
+    private static final float LUMA_THRESHOLD = 0.5f;
     private static final float MUL_REDUCE = 1f / 8f;
-    private static final float MIN_REDUCE = 0.1f / 128f;
+    private static final float MIN_REDUCE = 1f / 128f;
     private static final float MAX_SPAN = 8f;
     private static final int[] VERTEX_ATTRIBS = new int[]{
             2, 2

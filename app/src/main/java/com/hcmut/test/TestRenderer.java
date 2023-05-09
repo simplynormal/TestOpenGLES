@@ -98,20 +98,20 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         config.setLineTextShaderProgram(lineTextProgram);
         config.setFrameShaderProgram(frameShaderProgram);
 
-//        minLon = 106.73603f;
-//        maxLon = 106.74072f;
-//        minLat = 10.73122f;
-//        maxLat = 10.73465f;
+        minLon = 106.73603f;
+        maxLon = 106.74072f;
+        minLat = 10.73122f;
+        maxLat = 10.73465f;
 
 //        minLon = 106.71410f;
 //        maxLon = 106.72421f;
 //        minLat = 10.72307f;
 //        maxLat = 10.72860f;
 
-        minLon = 106.7187f;
-        maxLon = 106.7401f;
-        minLat = 10.7237f;
-        maxLat = 10.7350f;
+//        minLon = 106.7187f;
+//        maxLon = 106.7401f;
+//        minLat = 10.7237f;
+//        maxLat = 10.7350f;
 
         float originX = (minLon + maxLon) / 2;
         float originY = (minLat + maxLat) / 2;
@@ -526,8 +526,8 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
     @Override
     public void onDrawFrame(GL10 glUnused) {
-//        mFramebuffer.bind();
-//        GLES20.glViewport(0, 0, mFramebuffer.getWidth(), mFramebuffer.getHeight());
+//        framebuffer.bind();
+//        GLES20.glViewport(0, 0, framebuffer.getWidth(), framebuffer.getHeight());
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_STENCIL_BUFFER_BIT);
 
 //        testLineSymbolizer();
@@ -537,6 +537,6 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 //        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
 //        GLES20.glViewport(0, 0, config.getWidth(), config.getHeight());
 //        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-//        mFullScreenQuad.draw(mFramebuffer.getTextureId());
+//        fullScreenQuad.draw(framebuffer.getTextureId());
     }
 }

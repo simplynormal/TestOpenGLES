@@ -8,7 +8,7 @@ public abstract class SymMeta {
     public abstract void draw(Config config);
 
     protected static float[] appendTriangleStrip(float[] oldData, float[] newData, int totalVertexAttribCount) {
-        if (oldData.length == 0) return newData;
+        if (oldData == null || oldData.length == 0) return newData;
 
         boolean oldDrawableEmpty = newData.length == 0;
         float[] result = new float[newData.length + oldData.length + (oldDrawableEmpty ? 0 : totalVertexAttribCount * 2)];
