@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 
 import com.hcmut.test.algorithm.CoordinateTransform;
+import com.hcmut.test.geometry.BoundBox;
 import com.hcmut.test.geometry.Vector;
 import com.hcmut.test.osm.Node;
 import com.hcmut.test.programs.ColorShaderProgram;
@@ -24,6 +25,13 @@ import java.lang.Runnable;
 
 @SuppressLint("NewApi")
 public class Config {
+    private final List<BiConsumer<Config, Set<Property>>> listeners = new ArrayList<>();
+    private ColorShaderProgram colorShaderProgram;
+    private TextShaderProgram textShaderProgram;
+    private PointTextShaderProgram pointTextShaderProgram;
+    private LineTextShaderProgram lineTextShaderProgram;
+    private FrameShaderProgram frameShaderProgram;
+    public final Context context;
     private int width;
     private int height;
     private float lengthPerPixel;
@@ -33,13 +41,7 @@ public class Config {
     private float scale = 1;
     private float rotation = 0;
     private Vector translation = new Vector(0, 0);
-    private final List<BiConsumer<Config, Set<Property>>> listeners = new ArrayList<>();
-    private ColorShaderProgram colorShaderProgram;
-    private TextShaderProgram textShaderProgram;
-    private PointTextShaderProgram pointTextShaderProgram;
-    private LineTextShaderProgram lineTextShaderProgram;
-    private FrameShaderProgram frameShaderProgram;
-    public final Context context;
+    private BoundBox worldBoundBox = new BoundBox(0, 0, 0, 0);
 
     public enum Property {
         WIDTH,
@@ -187,6 +189,10 @@ public class Config {
         return translation;
     }
 
+    public BoundBox getWorldBoundBox() {
+        return worldBoundBox;
+    }
+
     public void setScale(float scale) {
         this.scale = scale;
         notifyListeners(Set.of(Property.SCALE));
@@ -200,5 +206,16 @@ public class Config {
     public void setTranslation(Vector translation) {
         this.translation = translation;
         notifyListeners(Set.of(Property.TRANSLATION));
+    }
+
+    public void setTransform(float scale, float rotation, Vector translation) {
+        this.scale = scale;
+        this.rotation = rotation;
+        this.translation = translation;
+        notifyListeners(Set.of(Property.SCALE, Property.ROTATION, Property.TRANSLATION));
+    }
+
+    public void setWorldBoundBox(BoundBox worldBoundBox) {
+        this.worldBoundBox = worldBoundBox;
     }
 }

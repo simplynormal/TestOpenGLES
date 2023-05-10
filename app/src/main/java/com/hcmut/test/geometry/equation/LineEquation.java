@@ -7,7 +7,7 @@ import com.hcmut.test.geometry.Vector;
 
 public class LineEquation {
     // ax + by + c = 0
-    private final float a, b, c;
+    public final float a, b, c;
     private static final double EPSILON = 1e-6;
 
     public LineEquation(float a, float b, float c) {

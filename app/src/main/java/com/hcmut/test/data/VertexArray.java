@@ -14,24 +14,16 @@ import static android.opengl.GLES20.glVertexAttribPointer;
 
 import android.opengl.GLES20;
 
-import com.hcmut.test.geometry.Point;
-import com.hcmut.test.geometry.PointList;
-import com.hcmut.test.geometry.Polygon;
-import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.programs.ShaderProgram;
 
-import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 
 public class VertexArray {
     protected static final int BYTES_PER_FLOAT = 4;
-    protected static final int seed = 69;
-    protected static Random random = new Random(seed);
     protected final ShaderProgram shaderProgram;
     protected int vertexCount;
     protected int id = -1;

@@ -19,36 +19,43 @@ import java.util.List;
 
 // PolygonSymbolizer keys: [fill, fill-opacity, gamma, clip]
 public class PolygonSymbolizer extends Symbolizer {
-    private static class PolygonSymMeta extends SymMeta {
-        private float[] drawable;
+    public static class PolygonSymMeta extends SymMeta {
+        private final List<float[]> drawables;
         protected VertexArray vertexArray = null;
 
         public PolygonSymMeta() {
-            this.drawable = new float[0];
+            this.drawables = new ArrayList<>(0);
         }
 
         public PolygonSymMeta(float[] drawable) {
-            this.drawable = drawable;
+            this.drawables = new ArrayList<>(1) {{
+                add(drawable);
+            }};
+        }
+
+        public PolygonSymMeta(List<float[]> drawables) {
+            this.drawables = drawables;
         }
 
         @Override
         public boolean isEmpty() {
-            return vertexArray == null && (drawable == null || drawable.length == 0);
+            return vertexArray == null && drawables.isEmpty();
         }
 
         @Override
         public SymMeta append(SymMeta other) {
             if (!(other instanceof PolygonSymMeta)) return this;
             PolygonSymMeta otherLineSymMeta = (PolygonSymMeta) other;
-            float[] result = appendRegular(drawable, otherLineSymMeta.drawable);
+            List<float[]> result = new ArrayList<>(drawables);
+            result.addAll(otherLineSymMeta.drawables);
             return new PolygonSymMeta(result);
         }
 
         private void draw(ColorShaderProgram shaderProgram) {
             if (isEmpty()) return;
             if (vertexArray == null) {
+                float[] drawable = appendRegular(drawables);
                 vertexArray = new VertexArray(shaderProgram, drawable);
-                drawable = null;
             }
             shaderProgram.useProgram();
             vertexArray.setDataFromVertexData();
@@ -70,7 +77,7 @@ public class PolygonSymbolizer extends Symbolizer {
     }
 
     @Override
-    public SymMeta toDrawable(Way way) {
+    public SymMeta toDrawable(Way way, String layerName) {
         if (!way.isClosed()) return new PolygonSymMeta();
         float scaledPixel = CoordinateTransform.getScalePixel(config.getScaleDenominator());
         Polygon polygon = way.toPolygon(config.getOriginX(), config.getOriginY(), scaledPixel * config.getLengthPerPixel());

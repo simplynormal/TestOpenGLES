@@ -1,5 +1,6 @@
 package com.hcmut.test.object;
 
+import android.annotation.SuppressLint;
 import android.util.Log;
 
 import com.hcmut.test.mapnik.Layer;
@@ -12,8 +13,11 @@ import com.hcmut.test.remote.WayResponse;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 
+@SuppressLint("NewApi")
 public class MapView {
+    private static final String TAG = "MapView";
     private HashMap<Long, WayResponse> ways = new HashMap<>(0);
     private final HashMap<String, Layer> layersMap = new HashMap<>(78);
     private List<Layer> layersOrder;
@@ -44,25 +48,31 @@ public class MapView {
             nodeMap.put(nodeResponse.id, new Node(nodeResponse.lon, nodeResponse.lat));
         }
         for (WayResponse wayResponse : wayResponses) {
-//            if (wayResponse.id != 165277514) continue;
             List<Node> wayNodes = new ArrayList<>();
+            boolean nodeNotFound = false;
             for (long nodeId : wayResponse.refs) {
                 Node node = nodeMap.get(nodeId);
                 if (node == null) {
-                    Log.e("StyleParser", "node not found: " + nodeId);
-                    continue;
+                    Log.e(TAG, "node not found: " + nodeId + ", skip way " + wayResponse.id);
+                    nodeNotFound = true;
+                    break;
                 }
                 wayNodes.add(node);
             }
 
+            if (nodeNotFound) {
+                continue;
+            }
+
+            Way way = new Way(wayResponse.id, wayNodes, wayResponse.tags);
+
             for (String layerName : wayResponse.tags.keySet()) {
                 Layer curLayer = layersMap.get(layerName);
                 if (curLayer == null) {
-                    Log.e("StyleParser", "layer not found: " + layerName);
+                    Log.e(TAG, "layer not found: " + layerName);
                     continue;
                 }
-                Way way = new Way(wayNodes, wayResponse.tags.get(layerName));
-                curLayer.addWay(wayResponse.id, way);
+                curLayer.addWay(way);
             }
         }
 

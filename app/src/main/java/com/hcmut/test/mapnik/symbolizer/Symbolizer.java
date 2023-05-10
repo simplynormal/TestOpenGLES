@@ -7,9 +7,11 @@ import com.hcmut.test.geometry.PointList;
 import com.hcmut.test.osm.Way;
 import com.hcmut.test.utils.Config;
 
+import java.util.HashMap;
+
 public abstract class Symbolizer {
     protected Config config;
-    abstract public SymMeta toDrawable(Way way);
+    abstract public SymMeta toDrawable(Way way, String layerName);
     @NonNull
     public abstract String toString();
 

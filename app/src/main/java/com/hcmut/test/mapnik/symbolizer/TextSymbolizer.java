@@ -134,44 +134,85 @@ public class TextSymbolizer extends Symbolizer {
     private static Typeface tf1 = null;
     private static final HashMap<String, TextDrawable> textCache = new HashMap<>();
 
-    private static class LineTextSymMeta extends SymMeta {
-        protected float[] triDrawable;
-        protected float[] triStripDrawable;
+
+    private static class TextSymMeta extends SymMeta {
+        protected List<float[]> triDrawables;
+        protected List<float[]> triStripDrawables;
         protected int firstHalfCount = 0;
         protected VertexArray vertexArray = null;
 
-        public LineTextSymMeta() {
-            this.triDrawable = new float[0];
-            this.triStripDrawable = new float[0];
+        protected TextSymMeta() {
+            this.triDrawables = new ArrayList<>(0);
+            this.triStripDrawables = new ArrayList<>(0);
         }
 
-        public LineTextSymMeta(float[] triDrawable, float[] triStripDrawable) {
-            this.triDrawable = triDrawable == null ? new float[0] : triDrawable;
-            this.triStripDrawable = triStripDrawable == null ? new float[0] : triStripDrawable;
+        protected TextSymMeta(float[] triDrawable, float[] triStripDrawable) {
+            this.triDrawables = new ArrayList<>(1) {{
+                add(triDrawable);
+            }};
+            this.triStripDrawables = new ArrayList<>(1) {{
+                add(triStripDrawable);
+            }};
+        }
+
+        protected TextSymMeta(List<float[]> triDrawables, List<float[]> triStripDrawables) {
+            this.triDrawables = triDrawables;
+            this.triStripDrawables = triStripDrawables;
         }
 
         @Override
         public boolean isEmpty() {
-            return vertexArray == null && ((triDrawable == null || triDrawable.length == 0) && (triStripDrawable == null || triStripDrawable.length == 0));
+            return vertexArray == null && triDrawables.isEmpty() && triStripDrawables.isEmpty();
+        }
+
+        @Override
+        public SymMeta append(SymMeta other) {
+            if (!(other instanceof TextSymMeta)) return this;
+            TextSymMeta otherTextSymMeta = (TextSymMeta) other;
+            List<float[]> result = new ArrayList<>(triDrawables);
+            result.addAll(otherTextSymMeta.triDrawables);
+            List<float[]> result2 = new ArrayList<>(triStripDrawables);
+            result2.addAll(otherTextSymMeta.triStripDrawables);
+            return new TextSymMeta(result, result2);
+        }
+
+        @Override
+        public void draw(Config config) {
+        }
+    }
+
+    public static class LineTextSymMeta extends TextSymMeta {
+
+        public LineTextSymMeta() {
+            super();
+        }
+
+        public LineTextSymMeta(float[] triDrawable, float[] triStripDrawable) {
+            super(triDrawable, triStripDrawable);
+        }
+
+        public LineTextSymMeta(TextSymMeta textSymMeta) {
+            super(textSymMeta.triDrawables, textSymMeta.triStripDrawables);
         }
 
         @Override
         public SymMeta append(SymMeta other) {
             if (!(other instanceof LineTextSymMeta)) return this;
-            LineTextSymMeta otherLineSymMeta = (LineTextSymMeta) other;
-            float[] triDrawable = appendRegular(this.triDrawable, otherLineSymMeta.triDrawable);
-            float[] triStripDrawable = appendTriangleStrip(this.triStripDrawable, otherLineSymMeta.triStripDrawable, LineTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
-            return new LineTextSymMeta(triDrawable, triStripDrawable);
+            return new LineTextSymMeta((TextSymMeta) super.append(other));
+        }
+
+        private float[] getDrawable() {
+            float[] triDrawable = appendRegular(triDrawables);
+            float[] triStripDrawable = appendTriangleStrip(triStripDrawables, LineTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
+            float[] drawable = appendRegular(triStripDrawable, triDrawable);
+            firstHalfCount = triStripDrawable.length / LineTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT;
+            return drawable;
         }
 
         private void draw(LineTextShaderProgram shaderProgram) {
             if (isEmpty()) return;
             if (vertexArray == null) {
-                float[] drawable = appendRegular(triStripDrawable, triDrawable);
-                firstHalfCount = triStripDrawable.length / LineTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT;
-                vertexArray = new VertexArray(shaderProgram, drawable);
-                triDrawable = null;
-                triStripDrawable = null;
+                vertexArray = new VertexArray(shaderProgram, getDrawable());
             }
             shaderProgram.useProgram();
             Point textCenter = TextDrawable.getTextCenter();
@@ -188,49 +229,42 @@ public class TextSymbolizer extends Symbolizer {
         }
     }
 
-    private static class PointTextSymMeta extends SymMeta {
-        protected float[] triDrawable;
-        protected float[] triStripDrawable;
-        protected int firstHalfCount = 0;
-        protected VertexArray vertexArray = null;
+    public static class PointTextSymMeta extends TextSymMeta {
 
         public PointTextSymMeta() {
-            this.triDrawable = new float[0];
-            this.triStripDrawable = new float[0];
+            super();
         }
 
         public PointTextSymMeta(float[] triDrawable, float[] triStripDrawable) {
-            this.triDrawable = triDrawable == null ? new float[0] : triDrawable;
-            this.triStripDrawable = triStripDrawable == null ? new float[0] : triStripDrawable;
+            super(triDrawable, triStripDrawable);
         }
 
-        @Override
-        public boolean isEmpty() {
-            return vertexArray == null && ((triDrawable == null || triDrawable.length == 0) && (triStripDrawable == null || triStripDrawable.length == 0));
+        public PointTextSymMeta(TextSymMeta textSymMeta) {
+            super(textSymMeta.triDrawables, textSymMeta.triStripDrawables);
         }
 
         @Override
         public SymMeta append(SymMeta other) {
             if (!(other instanceof PointTextSymMeta)) return this;
-            PointTextSymMeta otherLineSymMeta = (PointTextSymMeta) other;
-            float[] triDrawable = appendRegular(this.triDrawable, otherLineSymMeta.triDrawable);
-            float[] triStripDrawable = appendTriangleStrip(this.triStripDrawable, otherLineSymMeta.triStripDrawable, PointTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
-            return new PointTextSymMeta(triDrawable, triStripDrawable);
+            return new PointTextSymMeta((TextSymMeta) super.append(other));
+        }
+
+        private float[] getDrawable() {
+            float[] triDrawable = appendRegular(triDrawables);
+            float[] triStripDrawable = appendTriangleStrip(triStripDrawables, PointTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
+            float[] drawable = appendRegular(triStripDrawable, triDrawable);
+            firstHalfCount = triStripDrawable.length / PointTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT;
+            return drawable;
         }
 
         private void draw(PointTextShaderProgram shaderProgram) {
             if (isEmpty()) return;
             if (vertexArray == null) {
-                float[] drawable = appendRegular(triStripDrawable, triDrawable);
-                firstHalfCount = triStripDrawable.length / PointTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT;
-                vertexArray = new VertexArray(shaderProgram, drawable);
-                triDrawable = null;
-                triStripDrawable = null;
+                vertexArray = new VertexArray(shaderProgram, getDrawable());
             }
             shaderProgram.useProgram();
             Point textCenter = TextDrawable.getTextCenter();
             GLES20.glUniform2f(shaderProgram.getUniformLocation(PointTextShaderProgram.U_TEXT_CENTER), textCenter.x, textCenter.y);
-
             vertexArray.setDataFromVertexData();
             int pointCount = vertexArray.getVertexCount();
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, firstHalfCount);
@@ -304,8 +338,10 @@ public class TextSymbolizer extends Symbolizer {
         this.wrapWidth = wrapWidth == null ? 0 : Float.parseFloat(wrapWidth);
         this.font = fontsetName == null ? tf : fontsetName.equals("fontset-1") ? tf1 : tf;
         this.size = size == null ? 10 : Float.parseFloat(size);
-        this.haloFill = parseColorString(haloFill, 1);
-        this.haloRadius = haloRadius == null ? 0 : Float.parseFloat(haloRadius);
+        this.haloFill = haloFill == null ? new float[]{1, 1, 1, 1} : parseColorString(haloFill, 1);
+        this.haloRadius = haloRadius != null
+                ? Float.parseFloat(haloRadius)
+                : this.placement.equals("point") ? 1 : 0;
     }
 
     public static Function<HashMap<String, String>, String> createTextExprEvaluator(String template) {
@@ -400,12 +436,12 @@ public class TextSymbolizer extends Symbolizer {
         }
     }
 
-    private String getName(Way Way) {
-        return textExprEvaluator.apply(Way.tags);
+    private String getName(HashMap<String, String> tags) {
+        return textExprEvaluator.apply(tags);
     }
 
     @Override
-    public SymMeta toDrawable(Way way) {
+    public SymMeta toDrawable(Way way, String layerName) {
         Paint paint = new Paint();
         paint.setTypeface(tf);
         paint.setTextSize(size);
@@ -419,9 +455,9 @@ public class TextSymbolizer extends Symbolizer {
 
         switch (placement) {
             case "line":
-                return drawLinePlacement(way, shape, paint);
+                return drawLinePlacement(way, layerName, shape, paint);
             case "point":
-                return drawPointPlacement(way, shape, paint);
+                return drawPointPlacement(way, layerName, shape, paint);
         }
 
         return new LineTextSymMeta();
@@ -445,14 +481,14 @@ public class TextSymbolizer extends Symbolizer {
         return textWidth;
     }
 
-    private SymMeta drawPointPlacement(Way way, PointList shape, Paint paint) {
+    private SymMeta drawPointPlacement(Way way, String layerName, PointList shape, Paint paint) {
         PointTextSymMeta rv = new PointTextSymMeta();
-        if (way.isAlreadyDrawnTextPoint()) {
+        if (way.hasAlreadyDrawnTextPoint()) {
             return rv;
         }
         way.setAlreadyDrawnTextPoint(true);
 
-        String name = getName(way);
+        String name = getName(way.tags.get(layerName));
         if (name == null) {
             return rv;
         }
@@ -565,12 +601,12 @@ public class TextSymbolizer extends Symbolizer {
                 translateY = 0;
         }
 
-        return offsets.stream().map(offset -> new Point(offset.x + translateX + dx, offset.y + translateY + dy)).collect(Collectors.toList());
+        return offsets.stream().map(offset -> new Point(offset.x + translateX, offset.y + translateY)).collect(Collectors.toList());
     }
 
-    private SymMeta drawLinePlacement(Way way, PointList shape, Paint paint) {
+    private SymMeta drawLinePlacement(Way way, String layerName, PointList shape, Paint paint) {
         LineTextSymMeta rv = new LineTextSymMeta();
-        String name = getName(way);
+        String name = getName(way.tags.get(layerName));
         if (name == null) {
             return rv;
         }
@@ -730,8 +766,8 @@ public class TextSymbolizer extends Symbolizer {
             pathMeasure.getPosTan(hOffset + distance, pos, tan);
             pathMeasure.getPosTan(hOffset + textWidth - distance, altPos, altTan);
 
-            Point offset = new Point(pos[0] + tan[1] * vOffset, pos[1] - tan[0] * vOffset);
-            Point altOffset = new Point(altPos[0] - altTan[1] * vOffset, altPos[1] + altTan[0] * vOffset);
+            Point offset = new Point(pos[0] + tan[1] * (vOffset + dy * lengthPerPixel), pos[1] - tan[0] * (vOffset + dy * lengthPerPixel));
+            Point altOffset = new Point(altPos[0] - altTan[1] * (vOffset - dy * lengthPerPixel), altPos[1] + altTan[0] * vOffset - dy * lengthPerPixel);
             float angle = (float) (Math.atan2(tan[1], tan[0]) * 180 / Math.PI);
             float altAngle = (float) (Math.atan2(altTan[1], altTan[0]) * 180 / Math.PI);
             altAngle = (altAngle + 180) % 360;

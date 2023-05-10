@@ -56,7 +56,7 @@ public class StyleParser {
                             srs = xpp.getAttributeValue(null, "srs");
                             break;
                         case "Layer":
-                            layerParent = new Layer(xpp.getAttributeValue(null, "name"));
+                            layerParent = new Layer(config, xpp.getAttributeValue(null, "name"));
                             break;
                         case "StyleName":
                             assert layerParent != null;
@@ -176,7 +176,7 @@ public class StyleParser {
                         case "Rule":
                             assert ruleParent != null && styleParent != null;
                             if (ruleParent.compareScaleDenominator(config.getScaleDenominator())) {
-                                styleParent.rules.add(ruleParent);
+                                styleParent.addRule(ruleParent);
                             }
                             ruleParent = null;
                             break;

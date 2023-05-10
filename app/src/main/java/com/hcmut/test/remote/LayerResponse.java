@@ -2,6 +2,8 @@ package com.hcmut.test.remote;
 
 import androidx.annotation.NonNull;
 
+import java.util.HashMap;
+
 public class LayerResponse {
     public final NodeResponse[] nodes;
     public final WayResponse[] ways;

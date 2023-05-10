@@ -23,36 +23,43 @@ import java.util.List;
 
 // LineSymbolizer keys: [stroke-opacity, offset, stroke-linejoin, stroke-dasharray, stroke-width, stroke, clip, stroke-linecap]
 public class LineSymbolizer extends Symbolizer {
-    private static class LineSymMeta extends SymMeta {
-        private float[] drawable;
+    public static class LineSymMeta extends SymMeta {
+        private final List<float[]> drawables;
         protected VertexArray vertexArray = null;
 
         public LineSymMeta() {
-            this.drawable = new float[0];
+            this.drawables = new ArrayList<>(0);
         }
 
         public LineSymMeta(float[] drawable) {
-            this.drawable = drawable;
+            this.drawables = new ArrayList<>(1) {{
+                add(drawable);
+            }};
+        }
+
+        public LineSymMeta(List<float[]> drawables) {
+            this.drawables = drawables;
         }
 
         @Override
         public boolean isEmpty() {
-            return vertexArray == null && (drawable == null || drawable.length == 0);
+            return vertexArray == null && drawables.isEmpty();
         }
 
         @Override
         public SymMeta append(SymMeta other) {
             if (!(other instanceof LineSymMeta)) return this;
             LineSymMeta otherLineSymMeta = (LineSymMeta) other;
-            float[] result = appendTriangleStrip(drawable, otherLineSymMeta.drawable, ColorShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
+            List<float[]> result = new ArrayList<>(drawables);
+            result.addAll(otherLineSymMeta.drawables);
             return new LineSymMeta(result);
         }
 
         private void draw(ColorShaderProgram shaderProgram) {
             if (isEmpty()) return;
             if (vertexArray == null) {
+                float[] drawable = appendTriangleStrip(drawables, ColorShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
                 vertexArray = new VertexArray(shaderProgram, drawable);
-                drawable = null;
             }
             shaderProgram.useProgram();
             vertexArray.setDataFromVertexData();
@@ -202,7 +209,7 @@ public class LineSymbolizer extends Symbolizer {
     }
 
     @Override
-    public SymMeta toDrawable(Way way) {
+    public SymMeta toDrawable(Way way, String layerName) {
         float scaledPixel = CoordinateTransform.getScalePixel(config.getScaleDenominator());
         LineStrip lineStrip = new LineStrip(way.toPointList(config.getOriginX(), config.getOriginY(), scaledPixel * config.getLengthPerPixel()));
 

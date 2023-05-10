@@ -7,6 +7,7 @@ import androidx.annotation.NonNull;
 import com.hcmut.test.algorithm.CoordinateTransform;
 import com.hcmut.test.geometry.Point;
 import com.hcmut.test.geometry.PointList;
+import com.hcmut.test.mapnik.symbolizer.CombinedSymMeta;
 import com.hcmut.test.mapnik.symbolizer.SymMeta;
 import com.hcmut.test.mapnik.symbolizer.Symbolizer;
 import com.hcmut.test.mapnik.symbolizer.TextSymbolizer;
@@ -26,8 +27,8 @@ public class Rule {
     private Float maxScaleDenominator;
     private Float minScaleDenominator;
     private Function<HashMap<String, String>, Boolean> filter;
-    private final List<HashMap<String, SymMeta>> symMetaMapLists = new ArrayList<>();
     private final List<HashMap<Long, SymMeta>> symMetaMapLongLists = new ArrayList<>();
+    private final List<Long> symMetaOrder = new ArrayList<>();
     private final List<Symbolizer> symbolizers = new ArrayList<>();
     private final List<SymMeta> drawingSymMetas = new ArrayList<>();
     private final Config config;
@@ -60,7 +61,6 @@ public class Rule {
 
     public void addSymbolizer(Symbolizer symbolizer) {
         this.symbolizers.add(symbolizer);
-        this.symMetaMapLists.add(new HashMap<>());
         this.symMetaMapLongLists.add(new HashMap<>());
         this.drawingSymMetas.add(null);
     }
@@ -75,28 +75,6 @@ public class Rule {
         return true;
     }
 
-    public void validateWay(String key, Way way) {
-//        System.out.println("validateWay: " + key + " filter: " + filterString);
-
-        float scaleDenominator = config.getScaleDenominator();
-        if (!compareScaleDenominator(scaleDenominator)) {
-            return;
-        }
-
-        HashMap<String, String> tags = new HashMap<>(way.tags);
-        String wayPixelsString = tags.get("way_pixels");
-        float scaledPixel = CoordinateTransform.getScalePixel(scaleDenominator);
-        if (wayPixelsString != null) {
-            float wayPixels = Float.parseFloat(wayPixelsString) * scaledPixel * scaledPixel;
-            tags.put("way_pixels", Float.toString(wayPixels));
-        }
-
-        boolean isMatched = this.filter == null || this.filter.apply(tags);
-        if (isMatched) {
-            acceptWay(key, way);
-        }
-    }
-
 //    public void validateWay(long key, Way way) {
 //        float scaleDenominator = config.getScaleDenominator();
 //        if (!compareScaleDenominator(scaleDenominator)) {
@@ -104,113 +82,67 @@ public class Rule {
 //        }
 //
 //        HashMap<String, String> tags = new HashMap<>(way.tags);
-//        String wayPixelsString = tags.get("way_pixels");
-//        float scaledPixel = CoordinateTransform.getScalePixel(scaleDenominator);
-//        if (wayPixelsString != null) {
-//            float wayPixels = Float.parseFloat(wayPixelsString) * scaledPixel * scaledPixel;
-//            tags.put("way_pixels", Float.toString(wayPixels));
-//        }
-//
 //        boolean isMatched = this.filter == null || this.filter.apply(tags);
 //        if (isMatched) {
 //            acceptWay(key, way);
 //        }
 //    }
 
-    public void validateWay(long key, Way way) {
+    public CombinedSymMeta toDrawable(Way way, String layerName) {
         float scaleDenominator = config.getScaleDenominator();
         if (!compareScaleDenominator(scaleDenominator)) {
-            return;
+            return null;
         }
 
-        HashMap<String, String> tags = new HashMap<>(way.tags);
+        HashMap<String, String> tags = new HashMap<>(Objects.requireNonNull(way.tags.get(layerName)));
         boolean isMatched = this.filter == null || this.filter.apply(tags);
         if (isMatched) {
-            acceptWay(key, way);
-        }
-    }
-
-
-    public void removeWay(String key) {
-        for (HashMap<String, SymMeta> vertexArrayRaw : this.symMetaMapLists) {
-            vertexArrayRaw.remove(key);
-        }
-    }
-
-    private void acceptWay(String key, Way way) {
-        for (int i = 0; i < symbolizers.size(); i++) {
-            Symbolizer symbolizer = symbolizers.get(i);
-            HashMap<String, SymMeta> symMetaMap = this.symMetaMapLists.get(i);
-            try {
-                symMetaMap.put(key, symbolizer.toDrawable(way));
-            } catch (Exception e) {
-                e.printStackTrace();
-                System.err.println("Error drawing way " + key);
-                System.err.println("With symbolizer " + symbolizer);
+            List<SymMeta> symMetas = new ArrayList<>(symbolizers.size());
+            for (Symbolizer symbolizer : symbolizers) {
+                try {
+                    symMetas.add(symbolizer.toDrawable(way, layerName));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    System.err.println("Error drawing way " + way.id);
+                    System.err.println("With symbolizer " + symbolizer);
+                }
             }
+            return new CombinedSymMeta(symMetas);
         }
+        return null;
     }
 
-    private void acceptWay(long key, Way way) {
-//        System.out.println("acceptWay: " + key + " symbolizers: " + symbolizers);
-
-        for (int i = 0; i < symbolizers.size(); i++) {
-            Symbolizer symbolizer = symbolizers.get(i);
-            HashMap<Long, SymMeta> symMetaMap = this.symMetaMapLongLists.get(i);
-            try {
-                symMetaMap.put(key, symbolizer.toDrawable(way));
-            } catch (Exception e) {
-                e.printStackTrace();
-                System.err.println("Error drawing way " + key);
-                System.err.println("With symbolizer " + symbolizer);
-            }
-        }
-    }
-
-//    public void save() {
+//    private void acceptWay(long key, Way way) {
+////        System.out.println("acceptWay: " + key + " symbolizers: " + symbolizers);
+//        symMetaOrder.add(key);
+//
 //        for (int i = 0; i < symbolizers.size(); i++) {
-//            HashMap<String, SymMeta> symMetaMap = this.symMetaMapLists.get(i);
-//            drawingSymMetas.set(i, null);
-//            for (SymMeta symMeta : symMetaMap.values()) {
-//                SymMeta currentSymMeta = drawingSymMetas.get(i);
-//                if (currentSymMeta == null) {
-//                    drawingSymMetas.set(i, symMeta);
-//                } else {
-//                    drawingSymMetas.set(i, currentSymMeta.append(symMeta));
-//                }
+//            Symbolizer symbolizer = symbolizers.get(i);
+//            HashMap<Long, SymMeta> symMetaMap = this.symMetaMapLongLists.get(i);
+//            try {
+//                symMetaMap.put(key, symbolizer.toDrawable(way));
+//            } catch (Exception e) {
+//                e.printStackTrace();
+//                System.err.println("Error drawing way " + key);
+//                System.err.println("With symbolizer " + symbolizer);
 //            }
 //        }
 //    }
 
     public void save() {
         for (int i = 0; i < symbolizers.size(); i++) {
-            drawingSymMetas.set(i, null);
-            for (SymMeta symMeta : symMetaMapLongLists.get(i).values()) {
-                SymMeta currentSymMeta = drawingSymMetas.get(i);
+            SymMeta currentSymMeta = null;
+            for (long curId : symMetaOrder) {
+                SymMeta symMeta = this.symMetaMapLongLists.get(i).get(curId);
                 if (currentSymMeta == null) {
-                    drawingSymMetas.set(i, symMeta);
+                    currentSymMeta = symMeta;
                 } else {
-                    drawingSymMetas.set(i, currentSymMeta.append(symMeta));
+                    currentSymMeta = currentSymMeta.append(symMeta);
                 }
             }
+            drawingSymMetas.set(i, currentSymMeta);
         }
     }
-
-//    public void save() {
-//        for (int i = 0; i < symbolizers.size(); i++) {
-//            Class<?> symbolizerClass = symbolizers.get(i).getClass();
-//            HashMap<String, SymMeta> symMetaMap = this.symMetaMapLists.get(i);
-//            drawingSymMetasMap.clear();
-//            for (SymMeta symMeta : symMetaMap.values()) {
-//                SymMeta currentSymMeta = drawingSymMetasMap.get(symbolizerClass);
-//                if (currentSymMeta == null) {
-//                    drawingSymMetasMap.put(symbolizerClass, symMeta);
-//                } else {
-//                    drawingSymMetasMap.put(symbolizerClass, currentSymMeta.append(symMeta));
-//                }
-//            }
-//        }
-//    }
 
     public void draw() {
         if (drawingSymMetas.isEmpty()) return;
@@ -253,7 +185,7 @@ public class Rule {
                 String keyVal = tags.get(key);
 
                 if (keyVal == null) {
-                    return value.equals("null");
+                    keyVal = "null";
                 }
 
                 switch (operator) {
