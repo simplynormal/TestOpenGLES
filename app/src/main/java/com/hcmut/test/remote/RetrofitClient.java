@@ -49,7 +49,7 @@ public class RetrofitClient {
     public static APITurnByTurn getApiTurnByTurn() {
         if (apiTurnByTurn == null) {
 //            String baseURL = "https://api.bktraffic.com";
-            String baseURL = "http://192.168.1.104:3000";
+            String baseURL = "http://10.127.230.116:3000";
             apiTurnByTurn = builder(baseURL).create(APITurnByTurn.class);
         }
         return apiTurnByTurn;

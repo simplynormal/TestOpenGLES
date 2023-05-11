@@ -110,15 +110,15 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 //        minLat = 10.73122f;
 //        maxLat = 10.73465f;
 
-        minLon = 106.71410f;
-        maxLon = 106.72421f;
-        minLat = 10.72307f;
-        maxLat = 10.72860f;
+//        minLon = 106.71410f;
+//        maxLon = 106.72421f;
+//        minLat = 10.72307f;
+//        maxLat = 10.72860f;
 
-//        minLon = 106.7000f;
-//        maxLon = 106.7202f;
-//        minLat = 10.7382f;
-//        maxLat = 10.7492f;
+        minLon = 106.7000f;
+        maxLon = 106.7202f;
+        minLat = 10.7382f;
+        maxLat = 10.7492f;
 
 //        minLon = 106.7187f;
 //        maxLon = 106.7401f;
@@ -133,13 +133,9 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     }
 
     void read() {
-//        MapReader mapReader;
         StyleParser styleParser;
         try {
-//            mapReader = new MapReader(config.context, R.raw.map1);
-//            mapReader.setBounds(minLon, maxLon, minLat, maxLat);
-//            mapReader.read();
-            styleParser = new StyleParser(config, R.raw.mapnik);
+            styleParser = new StyleParser(config, R.xml.mapnik);
             styleParser.read();
         } catch (XmlPullParserException e) {
             throw new RuntimeException(e);
@@ -207,10 +203,10 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
         List<Point> screenQuad = new ArrayList<>(4) {
             {
-                add(new Point(-0.99f, -0.99f));
-                add(new Point(0.99f, -0.99f));
-                add(new Point(0.99f, 0.99f));
-                add(new Point(-0.99f, 0.99f));
+                add(new Point(-0.75f, -0.75f));
+                add(new Point(0.75f, -0.75f));
+                add(new Point(0.75f, 0.75f));
+                add(new Point(-0.75f, 0.75f));
             }
         };
 
