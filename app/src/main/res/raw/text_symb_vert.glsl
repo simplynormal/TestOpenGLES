@@ -16,7 +16,7 @@ attribute vec2 a_Offset;
 attribute float a_AltAngle;
 attribute vec2 a_AltOffset;
 attribute float a_FirstAngle;
-attribute int a_Mode; // 0: point, 1: line
+attribute float a_Mode; // 0: point, 1: line
 attribute vec4 a_Color;
 
 varying vec4 v_Color;
@@ -57,10 +57,10 @@ mat4 genTransformMatrix() {
     mat4 translationMatrix = genTranslationMatrix(u_Translation.x, u_Translation.y, 0.0);
 
     mat4 uprightMatrix;
-    if (a_Mode == 0) {
-        uprightMatrix = genTranslationMatrix(a_Center.x, a_Center.y, 0.0) * genRotationMatrix(-u_RotationAngle) * genTranslationMatrix(-a_Center.x, -a_Center.y, 0.0);
+    if (a_Mode == 0.0) {
+        uprightMatrix = genTranslationMatrix(a_AltOffset.x, a_AltOffset.y, 0.0) * genRotationMatrix(-u_RotationAngle) * genTranslationMatrix(-a_AltOffset.x, -a_AltOffset.y, 0.0);
     } else {
-        uprightMatrix = genScaleMatrix(0.0, 0.0, 0.0);
+        uprightMatrix = genScaleMatrix(1.0, 1.0, 1.0);
     }
 
     return scaleMatrix * rotationMatrix * translationMatrix * uprightMatrix;
@@ -80,7 +80,7 @@ void main() {
     mat4 transformMatrix = genTransformMatrix();
     mat4 fontTransformMatrix;
     float totalAngle = a_FirstAngle + u_RotationAngle;
-    if (a_Mode == 0) {
+    if (a_Mode == 0.0) {
         fontTransformMatrix = genFontTransformMatrix(a_Offset, 0.0);
     } else if (totalAngle > 90.0 && totalAngle < 270.0) {
         fontTransformMatrix = genFontTransformMatrix(a_AltOffset, a_AltAngle);

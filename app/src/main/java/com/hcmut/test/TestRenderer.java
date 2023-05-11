@@ -11,7 +11,6 @@ import androidx.annotation.NonNull;
 import com.hcmut.test.data.Framebuffer;
 import com.hcmut.test.geometry.BoundBox;
 import com.hcmut.test.geometry.Point;
-import com.hcmut.test.geometry.Ray;
 import com.hcmut.test.geometry.Vector;
 import com.hcmut.test.geometry.equation.LineEquation;
 import com.hcmut.test.geometry.equation.LineEquation3D;
@@ -20,10 +19,9 @@ import com.hcmut.test.mapnik.StyleParser;
 import com.hcmut.test.object.FullScreenQuad;
 import com.hcmut.test.object.MapView;
 import com.hcmut.test.programs.FrameShaderProgram;
-import com.hcmut.test.programs.LineTextShaderProgram;
-import com.hcmut.test.programs.PointTextShaderProgram;
 import com.hcmut.test.programs.ColorShaderProgram;
 import com.hcmut.test.programs.TextShaderProgram;
+import com.hcmut.test.programs.TextSymbShaderProgram;
 import com.hcmut.test.remote.BaseResponse;
 import com.hcmut.test.remote.LayerRequest;
 import com.hcmut.test.remote.LayerResponse;
@@ -69,6 +67,14 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     };
     private final float[] projectionMatrix = new float[16];
     private final float[] modelViewMatrix = new float[16];
+    private static final List<Point> SCREEN_QUAD = new ArrayList<>(4) {
+        {
+            add(new Point(-0.8f, -0.95f));
+            add(new Point(0.8f, -0.95f));
+            add(new Point(0.8f, 0.75f));
+            add(new Point(-0.8f, 0.75f));
+        }
+    };
     private Point oldPos = null;
     private List<Point> oldPosList;
     private static boolean TEST_DRAWN = false;
@@ -88,16 +94,13 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         int height = config.context.getResources().getDisplayMetrics().heightPixels;
         config.setWidthHeight(width, height);
 
-        ColorShaderProgram colorProgram = new ColorShaderProgram(config, projectionMatrix, modelViewMatrix);
-        PointTextShaderProgram pointTextProgram = new PointTextShaderProgram(config, projectionMatrix, modelViewMatrix);
-        LineTextShaderProgram lineTextProgram = new LineTextShaderProgram(config, projectionMatrix, modelViewMatrix);
-        TextShaderProgram textProgram = new TextShaderProgram(config, projectionMatrix, modelViewMatrix);
         frameShaderProgram = new FrameShaderProgram(config);
 
-        config.setColorShaderProgram(colorProgram);
-        config.setTextShaderProgram(textProgram);
-        config.setPointTextShaderProgram(pointTextProgram);
-        config.setLineTextShaderProgram(lineTextProgram);
+        config.setColorShaderProgram(new ColorShaderProgram(config, projectionMatrix, modelViewMatrix));
+        config.setTextShaderProgram(new TextShaderProgram(config, projectionMatrix, modelViewMatrix));
+//        config.setPointTextShaderProgram(new PointTextShaderProgram(config, projectionMatrix, modelViewMatrix));
+//        config.setLineTextShaderProgram(new LineTextShaderProgram(config, projectionMatrix, modelViewMatrix));
+        config.setTextSymbShaderProgram(new TextSymbShaderProgram(config, projectionMatrix, modelViewMatrix));
         config.setFrameShaderProgram(frameShaderProgram);
 
 //        minLon = 106.73101f;
@@ -135,7 +138,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     void read() {
         StyleParser styleParser;
         try {
-            styleParser = new StyleParser(config, R.xml.mapnik);
+            styleParser = new StyleParser(config, R.raw.mapnik);
             styleParser.read();
         } catch (XmlPullParserException e) {
             throw new RuntimeException(e);
@@ -201,16 +204,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             return;
         }
 
-        List<Point> screenQuad = new ArrayList<>(4) {
-            {
-                add(new Point(-0.75f, -0.75f));
-                add(new Point(0.75f, -0.75f));
-                add(new Point(0.75f, 0.75f));
-                add(new Point(-0.75f, 0.75f));
-            }
-        };
-
-        List<Point> worldQuad = screenToWorld(screenQuad);
+        List<Point> worldQuad = screenToWorld(SCREEN_QUAD);
         float minX = Float.MAX_VALUE;
         float maxX = Float.MIN_VALUE;
         float minY = Float.MAX_VALUE;

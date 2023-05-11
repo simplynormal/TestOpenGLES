@@ -50,6 +50,7 @@ public abstract class SymMeta {
 
     protected static float[] appendTriangleStrip(List<float[]> drawables, int totalVertexAttribCount) {
         int totalSize = drawables.stream().mapToInt(drawable -> drawable.length).sum();
+        if (totalSize == 0) return new float[0];
         float[] result = new float[totalSize + (drawables.size() - 1) * totalVertexAttribCount * 2];
         int offset = 0;
         for (int i = 0; i < drawables.size(); i++) {

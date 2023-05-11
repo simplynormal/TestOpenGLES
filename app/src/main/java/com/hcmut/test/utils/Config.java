@@ -12,6 +12,7 @@ import com.hcmut.test.programs.FrameShaderProgram;
 import com.hcmut.test.programs.LineTextShaderProgram;
 import com.hcmut.test.programs.PointTextShaderProgram;
 import com.hcmut.test.programs.TextShaderProgram;
+import com.hcmut.test.programs.TextSymbShaderProgram;
 
 import org.osgeo.proj4j.ProjCoordinate;
 
@@ -30,6 +31,7 @@ public class Config {
     private TextShaderProgram textShaderProgram;
     private PointTextShaderProgram pointTextShaderProgram;
     private LineTextShaderProgram lineTextShaderProgram;
+    private TextSymbShaderProgram textSymbShaderProgram;
     private FrameShaderProgram frameShaderProgram;
     public final Context context;
     private int width;
@@ -105,16 +107,24 @@ public class Config {
         return textShaderProgram;
     }
 
-    public void setFrameShaderProgram(FrameShaderProgram frameShaderProgram) {
-        this.frameShaderProgram = frameShaderProgram;
-    }
-
     public void setLineTextShaderProgram(LineTextShaderProgram lineTextShaderProgram) {
         this.lineTextShaderProgram = lineTextShaderProgram;
     }
 
     public LineTextShaderProgram getLineTextShaderProgram() {
         return lineTextShaderProgram;
+    }
+
+    public void setTextSymbShaderProgram(TextSymbShaderProgram textSymbShaderProgram) {
+        this.textSymbShaderProgram = textSymbShaderProgram;
+    }
+
+    public TextSymbShaderProgram getTextSymbShaderProgram() {
+        return textSymbShaderProgram;
+    }
+
+    public void setFrameShaderProgram(FrameShaderProgram frameShaderProgram) {
+        this.frameShaderProgram = frameShaderProgram;
     }
 
     public FrameShaderProgram getFrameShaderProgram() {

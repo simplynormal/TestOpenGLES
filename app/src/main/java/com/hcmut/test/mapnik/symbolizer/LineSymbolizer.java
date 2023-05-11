@@ -23,8 +23,8 @@ import java.util.List;
 
 // LineSymbolizer keys: [stroke-opacity, offset, stroke-linejoin, stroke-dasharray, stroke-width, stroke, clip, stroke-linecap]
 public class LineSymbolizer extends Symbolizer {
-    public static class LineSymMeta extends SymMeta {
-        private final List<float[]> drawables;
+    static class LineSymMeta extends SymMeta {
+        final List<float[]> drawables;
         protected VertexArray vertexArray = null;
 
         public LineSymMeta() {

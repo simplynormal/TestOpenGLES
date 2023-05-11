@@ -22,8 +22,7 @@ import com.hcmut.test.geometry.Polygon;
 import com.hcmut.test.geometry.Triangle;
 import com.hcmut.test.geometry.TriangleStrip;
 import com.hcmut.test.osm.Way;
-import com.hcmut.test.programs.LineTextShaderProgram;
-import com.hcmut.test.programs.PointTextShaderProgram;
+import com.hcmut.test.programs.TextSymbShaderProgram;
 import com.hcmut.test.utils.Config;
 
 import java.util.ArrayList;
@@ -38,7 +37,7 @@ import java.util.stream.Collectors;
 
 @SuppressLint("NewApi")
 public class TextSymbolizer extends Symbolizer {
-    private static class TextDrawable {
+    static class TextDrawable {
         public static final float DEFAULT_FONT_SIZE = 10;
         private static final Paint PAINT = new Paint();
         private static Typeface TYPEFACE = null;
@@ -135,145 +134,72 @@ public class TextSymbolizer extends Symbolizer {
     private static final HashMap<String, TextDrawable> textCache = new HashMap<>();
 
 
-    private static class TextSymMeta extends SymMeta {
-        protected List<float[]> triDrawables;
-        protected List<float[]> triStripDrawables;
-        protected int firstHalfCount = 0;
-        protected VertexArray vertexArray = null;
+    static class TextSymMeta extends SymMeta {
+        final List<float[]> polygonDrawables;
+        final List<float[]> lineDrawables;
+        int firstHalfCount = 0;
+        private VertexArray vertexArray = null;
 
-        protected TextSymMeta() {
-            this.triDrawables = new ArrayList<>(0);
-            this.triStripDrawables = new ArrayList<>(0);
+        public TextSymMeta() {
+            this.polygonDrawables = new ArrayList<>(0);
+            this.lineDrawables = new ArrayList<>(0);
         }
 
-        protected TextSymMeta(float[] triDrawable, float[] triStripDrawable) {
-            this.triDrawables = new ArrayList<>(1) {{
+        public TextSymMeta(float[] triDrawable, float[] triStripDrawable) {
+            this.polygonDrawables = new ArrayList<>(1) {{
                 add(triDrawable);
             }};
-            this.triStripDrawables = new ArrayList<>(1) {{
+            this.lineDrawables = new ArrayList<>(1) {{
                 add(triStripDrawable);
             }};
         }
 
-        protected TextSymMeta(List<float[]> triDrawables, List<float[]> triStripDrawables) {
-            this.triDrawables = triDrawables;
-            this.triStripDrawables = triStripDrawables;
+        public TextSymMeta(List<float[]> polygonDrawables, List<float[]> lineDrawables) {
+            this.polygonDrawables = polygonDrawables;
+            this.lineDrawables = lineDrawables;
         }
 
         @Override
         public boolean isEmpty() {
-            return vertexArray == null && triDrawables.isEmpty() && triStripDrawables.isEmpty();
+            return vertexArray == null && polygonDrawables.isEmpty() && lineDrawables.isEmpty();
         }
 
         @Override
         public SymMeta append(SymMeta other) {
             if (!(other instanceof TextSymMeta)) return this;
             TextSymMeta otherTextSymMeta = (TextSymMeta) other;
-            List<float[]> result = new ArrayList<>(triDrawables);
-            result.addAll(otherTextSymMeta.triDrawables);
-            List<float[]> result2 = new ArrayList<>(triStripDrawables);
-            result2.addAll(otherTextSymMeta.triStripDrawables);
+            List<float[]> result = new ArrayList<>(polygonDrawables);
+            result.addAll(otherTextSymMeta.polygonDrawables);
+            List<float[]> result2 = new ArrayList<>(lineDrawables);
+            result2.addAll(otherTextSymMeta.lineDrawables);
             return new TextSymMeta(result, result2);
         }
 
-        @Override
-        public void draw(Config config) {
-        }
-    }
-
-    public static class LineTextSymMeta extends TextSymMeta {
-
-        public LineTextSymMeta() {
-            super();
-        }
-
-        public LineTextSymMeta(float[] triDrawable, float[] triStripDrawable) {
-            super(triDrawable, triStripDrawable);
-        }
-
-        public LineTextSymMeta(TextSymMeta textSymMeta) {
-            super(textSymMeta.triDrawables, textSymMeta.triStripDrawables);
-        }
-
-        @Override
-        public SymMeta append(SymMeta other) {
-            if (!(other instanceof LineTextSymMeta)) return this;
-            return new LineTextSymMeta((TextSymMeta) super.append(other));
-        }
-
         private float[] getDrawable() {
-            float[] triDrawable = appendRegular(triDrawables);
-            float[] triStripDrawable = appendTriangleStrip(triStripDrawables, LineTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
+            float[] triDrawable = appendRegular(polygonDrawables);
+            float[] triStripDrawable = appendTriangleStrip(lineDrawables, TextSymbShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
             float[] drawable = appendRegular(triStripDrawable, triDrawable);
-            firstHalfCount = triStripDrawable.length / LineTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT;
+            firstHalfCount = triStripDrawable.length / TextSymbShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT;
             return drawable;
         }
 
-        private void draw(LineTextShaderProgram shaderProgram) {
+        private void draw(TextSymbShaderProgram shaderProgram) {
             if (isEmpty()) return;
             if (vertexArray == null) {
                 vertexArray = new VertexArray(shaderProgram, getDrawable());
             }
             shaderProgram.useProgram();
             Point textCenter = TextDrawable.getTextCenter();
-            GLES20.glUniform2f(shaderProgram.getUniformLocation(LineTextShaderProgram.U_TEXT_CENTER), textCenter.x, textCenter.y);
+            GLES20.glUniform2f(shaderProgram.getUniformLocation(TextSymbShaderProgram.U_TEXT_CENTER), textCenter.x, textCenter.y);
             vertexArray.setDataFromVertexData();
             int pointCount = vertexArray.getVertexCount();
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, firstHalfCount);
             GLES20.glDrawArrays(GLES20.GL_TRIANGLES, firstHalfCount, pointCount - firstHalfCount);
         }
-
+        
         @Override
         public void draw(Config config) {
-            draw(config.getLineTextShaderProgram());
-        }
-    }
-
-    public static class PointTextSymMeta extends TextSymMeta {
-
-        public PointTextSymMeta() {
-            super();
-        }
-
-        public PointTextSymMeta(float[] triDrawable, float[] triStripDrawable) {
-            super(triDrawable, triStripDrawable);
-        }
-
-        public PointTextSymMeta(TextSymMeta textSymMeta) {
-            super(textSymMeta.triDrawables, textSymMeta.triStripDrawables);
-        }
-
-        @Override
-        public SymMeta append(SymMeta other) {
-            if (!(other instanceof PointTextSymMeta)) return this;
-            return new PointTextSymMeta((TextSymMeta) super.append(other));
-        }
-
-        private float[] getDrawable() {
-            float[] triDrawable = appendRegular(triDrawables);
-            float[] triStripDrawable = appendTriangleStrip(triStripDrawables, PointTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
-            float[] drawable = appendRegular(triStripDrawable, triDrawable);
-            firstHalfCount = triStripDrawable.length / PointTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT;
-            return drawable;
-        }
-
-        private void draw(PointTextShaderProgram shaderProgram) {
-            if (isEmpty()) return;
-            if (vertexArray == null) {
-                vertexArray = new VertexArray(shaderProgram, getDrawable());
-            }
-            shaderProgram.useProgram();
-            Point textCenter = TextDrawable.getTextCenter();
-            GLES20.glUniform2f(shaderProgram.getUniformLocation(PointTextShaderProgram.U_TEXT_CENTER), textCenter.x, textCenter.y);
-            vertexArray.setDataFromVertexData();
-            int pointCount = vertexArray.getVertexCount();
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, firstHalfCount);
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLES, firstHalfCount, pointCount - firstHalfCount);
-        }
-
-        @Override
-        public void draw(Config config) {
-            draw(config.getPointTextShaderProgram());
+            draw(config.getTextSymbShaderProgram());
         }
     }
 
@@ -460,7 +386,7 @@ public class TextSymbolizer extends Symbolizer {
                 return drawPointPlacement(way, layerName, shape, paint);
         }
 
-        return new LineTextSymMeta();
+        return new TextSymMeta();
     }
 
     private TextDrawable getText(String c) {
@@ -482,7 +408,7 @@ public class TextSymbolizer extends Symbolizer {
     }
 
     private SymMeta drawPointPlacement(Way way, String layerName, PointList shape, Paint paint) {
-        PointTextSymMeta rv = new PointTextSymMeta();
+        TextSymMeta rv = new TextSymMeta();
         if (way.hasAlreadyDrawnTextPoint()) {
             return rv;
         }
@@ -543,7 +469,7 @@ public class TextSymbolizer extends Symbolizer {
             if (polygon != null) {
                 List<Triangle> curTriangulatedTriangles = polygon.triangulate();
 
-                float[] curTri = PointTextShaderProgram.toVertexData(new ArrayList<>() {
+                float[] curTri = TextSymbShaderProgram.toPointVertexData(new ArrayList<>() {
                     {
                         for (Triangle triangle : curTriangulatedTriangles) {
                             add(triangle.p1);
@@ -555,10 +481,10 @@ public class TextSymbolizer extends Symbolizer {
                 float strokeWidth = haloRadius * lengthPerPixel;
                 float[] curTriStrip = drawPointTextLineStrip(new LineStrip(polygon), size, offset, center, strokeWidth, haloFill);
                 for (Polygon hole : polygon.holes) {
-                    curTriStrip = SymMeta.appendTriangleStrip(curTriStrip, drawPointTextLineStrip(new LineStrip(hole), size, offset, center, strokeWidth, haloFill), PointTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
+                    curTriStrip = SymMeta.appendTriangleStrip(curTriStrip, drawPointTextLineStrip(new LineStrip(hole), size, offset, center, strokeWidth, haloFill), TextSymbShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
                 }
 
-                rv = (PointTextSymMeta) rv.append(new PointTextSymMeta(curTri, curTriStrip));
+                rv = (TextSymMeta) rv.append(new TextSymMeta(curTri, curTriStrip));
             }
         }
 
@@ -572,7 +498,7 @@ public class TextSymbolizer extends Symbolizer {
         StrokeGenerator.Stroke lineStroke = StrokeGenerator.generateStroke(lineStrip
                 , 8, strokeWidth / 2, StrokeGenerator.StrokeLineCap.ROUND);
         TriangleStrip triangleStrip = lineStroke.toTriangleStrip();
-        return PointTextShaderProgram.toVertexData(triangleStrip, fontSize, offset, center, strokeColor);
+        return TextSymbShaderProgram.toPointVertexData(triangleStrip, fontSize, offset, center, strokeColor);
     }
 
 
@@ -605,7 +531,7 @@ public class TextSymbolizer extends Symbolizer {
     }
 
     private SymMeta drawLinePlacement(Way way, String layerName, PointList shape, Paint paint) {
-        LineTextSymMeta rv = new LineTextSymMeta();
+        TextSymMeta rv = new TextSymMeta();
         String name = getName(way.tags.get(layerName));
         if (name == null) {
             return rv;
@@ -637,7 +563,7 @@ public class TextSymbolizer extends Symbolizer {
                 if (polygon != null) {
                     List<Triangle> curTriangulatedTriangles = polygon.triangulate();
 
-                    float[] curTri = LineTextShaderProgram.toVertexData(new ArrayList<>() {
+                    float[] curTri = TextSymbShaderProgram.toLineVertexData(new ArrayList<>() {
                         {
                             for (Triangle triangle : curTriangulatedTriangles) {
                                 add(triangle.p1);
@@ -649,10 +575,10 @@ public class TextSymbolizer extends Symbolizer {
                     float strokeWidth = haloRadius * lengthPerPixel;
                     float[] curTriStrip = drawLineTextLineStrip(new LineStrip(polygon), size, angle, offset, altAngle, altOffset, firstAngle, strokeWidth, haloFill);
                     for (Polygon hole : polygon.holes) {
-                        curTriStrip = SymMeta.appendTriangleStrip(curTriStrip, drawLineTextLineStrip(new LineStrip(hole), size, angle, offset, altAngle, altOffset, firstAngle, strokeWidth, haloFill), LineTextShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
+                        curTriStrip = SymMeta.appendTriangleStrip(curTriStrip, drawLineTextLineStrip(new LineStrip(hole), size, angle, offset, altAngle, altOffset, firstAngle, strokeWidth, haloFill), TextSymbShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
                     }
 
-                    rv = (LineTextSymMeta) rv.append(new LineTextSymMeta(curTri, curTriStrip));
+                    rv = (TextSymMeta) rv.append(new TextSymMeta(curTri, curTriStrip));
                 }
             }
         }
@@ -667,7 +593,7 @@ public class TextSymbolizer extends Symbolizer {
         StrokeGenerator.Stroke lineStroke = StrokeGenerator.generateStroke(lineStrip
                 , 8, strokeWidth / 2, StrokeGenerator.StrokeLineCap.ROUND);
         TriangleStrip triangleStrip = lineStroke.toTriangleStrip();
-        return LineTextShaderProgram.toVertexData(triangleStrip, fontSize, angle, offset, altAngle, altOffset, firstAngle, strokeColor);
+        return TextSymbShaderProgram.toLineVertexData(triangleStrip, fontSize, angle, offset, altAngle, altOffset, firstAngle, strokeColor);
     }
 
 

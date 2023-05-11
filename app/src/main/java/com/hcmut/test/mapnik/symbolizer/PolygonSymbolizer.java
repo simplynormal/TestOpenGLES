@@ -19,8 +19,8 @@ import java.util.List;
 
 // PolygonSymbolizer keys: [fill, fill-opacity, gamma, clip]
 public class PolygonSymbolizer extends Symbolizer {
-    public static class PolygonSymMeta extends SymMeta {
-        private final List<float[]> drawables;
+    static class PolygonSymMeta extends SymMeta {
+        final List<float[]> drawables;
         protected VertexArray vertexArray = null;
 
         public PolygonSymMeta() {

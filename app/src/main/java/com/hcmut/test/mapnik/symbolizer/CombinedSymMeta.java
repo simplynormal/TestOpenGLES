@@ -1,75 +1,172 @@
 package com.hcmut.test.mapnik.symbolizer;
 
+import android.opengl.GLES20;
+
 import com.hcmut.test.data.VertexArray;
+import com.hcmut.test.geometry.Point;
+import com.hcmut.test.programs.ColorShaderProgram;
+import com.hcmut.test.programs.TextSymbShaderProgram;
 import com.hcmut.test.utils.Config;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class CombinedSymMeta extends SymMeta {
-    private final List<SymMeta> symMetas;
-    protected VertexArray vertexArray = null;
+    private final List<float[]> lineDrawables;
+    private final List<float[]> polygonDrawables;
+    private final List<float[]> textPolygonDrawables;
+    private final List<float[]> textLineDrawables;
+    private int firstHalfCount = 0;
+    private int textFirstHalfCount = 0;
+    private VertexArray vertexArray = null;
+    private VertexArray textVertexArray = null;
 
     public CombinedSymMeta() {
-        this.symMetas = new ArrayList<>(0);
+        lineDrawables = new ArrayList<>(0);
+        polygonDrawables = new ArrayList<>(0);
+        textPolygonDrawables = new ArrayList<>(0);
+        textLineDrawables = new ArrayList<>(0);
+    }
+
+    private CombinedSymMeta(List<float[]> lineDrawables, List<float[]> polygonDrawables, List<float[]> textPolygonDrawables, List<float[]> textLineDrawables) {
+        this.lineDrawables = lineDrawables;
+        this.polygonDrawables = polygonDrawables;
+        this.textPolygonDrawables = textPolygonDrawables;
+        this.textLineDrawables = textLineDrawables;
     }
 
     public CombinedSymMeta(List<SymMeta> symMetas) {
-        this.symMetas = new ArrayList<>(symMetas);
+        lineDrawables = new ArrayList<>();
+        polygonDrawables = new ArrayList<>();
+        textPolygonDrawables = new ArrayList<>();
+        textLineDrawables = new ArrayList<>();
+        for (SymMeta symMeta : symMetas) {
+            List<float[]>[] symMetaDrawables = extractSymMeta(symMeta);
+            lineDrawables.addAll(symMetaDrawables[0]);
+            polygonDrawables.addAll(symMetaDrawables[1]);
+            textPolygonDrawables.addAll(symMetaDrawables[2]);
+            textLineDrawables.addAll(symMetaDrawables[3]);
+        }
+    }
+
+    private static List<float[]>[] extractSymMeta(SymMeta symMeta) {
+        List<float[]> lineDrawables;
+        List<float[]> polygonDrawables;
+        List<float[]> textPolygonDrawables;
+        List<float[]> textLineDrawables;
+        if (symMeta instanceof CombinedSymMeta) {
+            lineDrawables = ((CombinedSymMeta) symMeta).lineDrawables;
+            polygonDrawables = ((CombinedSymMeta) symMeta).polygonDrawables;
+            textPolygonDrawables = ((CombinedSymMeta) symMeta).textPolygonDrawables;
+            textLineDrawables = ((CombinedSymMeta) symMeta).textLineDrawables;
+        } else if (symMeta instanceof LineSymbolizer.LineSymMeta) {
+            lineDrawables = ((LineSymbolizer.LineSymMeta) symMeta).drawables;
+            polygonDrawables = new ArrayList<>(0);
+            textPolygonDrawables = new ArrayList<>(0);
+            textLineDrawables = new ArrayList<>(0);
+        } else if (symMeta instanceof PolygonSymbolizer.PolygonSymMeta) {
+            lineDrawables = new ArrayList<>(0);
+            polygonDrawables = ((PolygonSymbolizer.PolygonSymMeta) symMeta).drawables;
+            textPolygonDrawables = new ArrayList<>(0);
+            textLineDrawables = new ArrayList<>(0);
+        } else if (symMeta instanceof TextSymbolizer.TextSymMeta) {
+            lineDrawables = new ArrayList<>(0);
+            polygonDrawables = new ArrayList<>(0);
+            textPolygonDrawables = ((TextSymbolizer.TextSymMeta) symMeta).polygonDrawables;
+            textLineDrawables = ((TextSymbolizer.TextSymMeta) symMeta).lineDrawables;
+        } else {
+            lineDrawables = new ArrayList<>(0);
+            polygonDrawables = new ArrayList<>(0);
+            textPolygonDrawables = new ArrayList<>(0);
+            textLineDrawables = new ArrayList<>(0);
+        }
+
+        return new List[]{lineDrawables, polygonDrawables, textPolygonDrawables, textLineDrawables};
     }
 
     @Override
     public boolean isEmpty() {
-        return vertexArray == null && symMetas.isEmpty();
-    }
-
-    private static boolean isSameSymMeta(SymMeta symMeta1, SymMeta symMeta2) {
-        return symMeta1.getClass().equals(symMeta2.getClass());
+        return vertexArray == null && lineDrawables.isEmpty() && polygonDrawables.isEmpty() && textPolygonDrawables.isEmpty() && textLineDrawables.isEmpty();
     }
 
     @Override
     public SymMeta append(SymMeta other) {
         if (other == null || other.isEmpty()) return this;
 
-        if (other instanceof CombinedSymMeta) {
-            CombinedSymMeta otherCast = (CombinedSymMeta) other;
-            if (symMetas.isEmpty()) {
-                return new CombinedSymMeta(otherCast.symMetas);
-            }
+        List<float[]>[] otherDrawables = extractSymMeta(other);
+        List<float[]> newLineDrawables = new ArrayList<>(lineDrawables);
+        List<float[]> newPolygonDrawables = new ArrayList<>(polygonDrawables);
+        List<float[]> newTextPolygonDrawables = new ArrayList<>(textPolygonDrawables);
+        List<float[]> newTextLineDrawables = new ArrayList<>(textLineDrawables);
+        newLineDrawables.addAll(otherDrawables[0]);
+        newPolygonDrawables.addAll(otherDrawables[1]);
+        newTextPolygonDrawables.addAll(otherDrawables[2]);
+        newTextLineDrawables.addAll(otherDrawables[3]);
+        return new CombinedSymMeta(newLineDrawables, newPolygonDrawables, newTextPolygonDrawables, newTextLineDrawables);
+    }
 
-            SymMeta last = symMetas.get(symMetas.size() - 1);
-            SymMeta otherFirst = otherCast.symMetas.get(0);
-            if (isSameSymMeta(last, otherFirst)) {
-                List<SymMeta> result = new ArrayList<>(symMetas.subList(0, symMetas.size() - 1));
-                result.add(last.append(otherFirst));
-                result.addAll(otherCast.symMetas.subList(1, otherCast.symMetas.size()));
-                return new CombinedSymMeta(result);
-            }
+//    @Override
+//    public void draw(Config config) {
+//        for (SymMeta symMeta : symMetas) {
+//            symMeta.draw(config);
+//        }
+//    }
 
-            List<SymMeta> result = new ArrayList<>(symMetas);
-            result.addAll(otherCast.symMetas);
-            return new CombinedSymMeta(result);
+
+    private float[] getDrawable() {
+        float[] triDrawable = appendRegular(polygonDrawables);
+        float[] triStripDrawable = appendTriangleStrip(lineDrawables, ColorShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
+        float[] drawable = appendRegular(triStripDrawable, triDrawable);
+        firstHalfCount = triStripDrawable.length / ColorShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT;
+        return drawable;
+    }
+
+    private float[] getTextDrawable() {
+        float[] triDrawable = appendRegular(textPolygonDrawables);
+        float[] triStripDrawable = appendTriangleStrip(textLineDrawables, TextSymbShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT);
+        float[] drawable = appendRegular(triStripDrawable, triDrawable);
+        textFirstHalfCount = triStripDrawable.length / TextSymbShaderProgram.TOTAL_VERTEX_ATTRIB_COUNT;
+        return drawable;
+    }
+
+
+    private void draw(ColorShaderProgram shaderProgram) {
+        if (vertexArray == null && lineDrawables.isEmpty() && polygonDrawables.isEmpty()) return;
+        if (vertexArray == null) {
+            vertexArray = new VertexArray(shaderProgram, getDrawable());
+            lineDrawables.clear();
+            polygonDrawables.clear();
         }
-
-        List<SymMeta> rv = new ArrayList<>(symMetas);
-        if (symMetas.isEmpty()) {
-            rv.add(other);
-            return new CombinedSymMeta(rv);
+        shaderProgram.useProgram();
+        vertexArray.setDataFromVertexData();
+        int pointCount = vertexArray.getVertexCount();
+        if (firstHalfCount > 0) {
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, firstHalfCount);
         }
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, firstHalfCount, pointCount - firstHalfCount);
+    }
 
-        SymMeta last = symMetas.get(symMetas.size() - 1);
-        if (isSameSymMeta(last, other)) {
-            rv.set(rv.size() - 1, last.append(other));
-        } else {
-            rv.add(other);
+    private void drawText(TextSymbShaderProgram shaderProgram) {
+        if (textVertexArray == null && textLineDrawables.isEmpty() && textPolygonDrawables.isEmpty()) return;
+        if (textVertexArray == null) {
+            textVertexArray = new VertexArray(shaderProgram, getTextDrawable());
+            textLineDrawables.clear();
+            textPolygonDrawables.clear();
         }
-        return new CombinedSymMeta(rv);
+        shaderProgram.useProgram();
+        Point textCenter = TextSymbolizer.TextDrawable.getTextCenter();
+        GLES20.glUniform2f(shaderProgram.getUniformLocation(TextSymbShaderProgram.U_TEXT_CENTER), textCenter.x, textCenter.y);
+        textVertexArray.setDataFromVertexData();
+        int pointCount = textVertexArray.getVertexCount();
+        if (textFirstHalfCount > 0) {
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, textFirstHalfCount);
+        }
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, textFirstHalfCount, pointCount - textFirstHalfCount);
     }
 
     @Override
     public void draw(Config config) {
-        for (SymMeta symMeta : symMetas) {
-            symMeta.draw(config);
-        }
+        draw(config.getColorShaderProgram());
+        drawText(config.getTextSymbShaderProgram());
     }
 }

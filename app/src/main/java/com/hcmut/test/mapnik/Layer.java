@@ -9,9 +9,7 @@ import com.hcmut.test.utils.Config;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 @SuppressLint("NewApi")
 public class Layer {
@@ -46,7 +44,7 @@ public class Layer {
         List<CombinedSymMeta> symMetaWithWays = new ArrayList<>(styles.size());
         for (int i = 0; i < styles.size(); i++) {
             Style style = styles.get(i);
-            CombinedSymMeta combinedSymMeta = style.drawWay(way);
+            CombinedSymMeta combinedSymMeta = style.toDrawable(way);
             symMetaWithWays.add(combinedSymMeta);
         }
         symMetasMap.put(way.id, symMetaWithWays);

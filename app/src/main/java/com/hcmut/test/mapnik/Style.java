@@ -1,9 +1,7 @@
 package com.hcmut.test.mapnik;
 
 import com.hcmut.test.mapnik.symbolizer.CombinedSymMeta;
-import com.hcmut.test.mapnik.symbolizer.SymMeta;
 import com.hcmut.test.osm.Way;
-import com.hcmut.test.utils.Config;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +22,7 @@ public class Style {
 //        }
 //    }
 
-    public CombinedSymMeta drawWay(Way way) {
+    public CombinedSymMeta toDrawable(Way way) {
         CombinedSymMeta combinedSymMeta = new CombinedSymMeta();
         for (Rule rule : rules) {
             combinedSymMeta = (CombinedSymMeta) combinedSymMeta.append(rule.toDrawable(way, layerName));
