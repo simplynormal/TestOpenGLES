@@ -9,8 +9,6 @@ import com.hcmut.test.geometry.Vector;
 import com.hcmut.test.osm.Node;
 import com.hcmut.test.programs.ColorShaderProgram;
 import com.hcmut.test.programs.FrameShaderProgram;
-import com.hcmut.test.programs.LineTextShaderProgram;
-import com.hcmut.test.programs.PointTextShaderProgram;
 import com.hcmut.test.programs.TextShaderProgram;
 import com.hcmut.test.programs.TextSymbShaderProgram;
 
@@ -29,8 +27,6 @@ public class Config {
     private final List<BiConsumer<Config, Set<Property>>> listeners = new ArrayList<>();
     private ColorShaderProgram colorShaderProgram;
     private TextShaderProgram textShaderProgram;
-    private PointTextShaderProgram pointTextShaderProgram;
-    private LineTextShaderProgram lineTextShaderProgram;
     private TextSymbShaderProgram textSymbShaderProgram;
     private FrameShaderProgram frameShaderProgram;
     public final Context context;
@@ -95,25 +91,10 @@ public class Config {
         this.textShaderProgram = textShaderProgram;
     }
 
-    public void setPointTextShaderProgram(PointTextShaderProgram pointTextShaderProgram) {
-        this.pointTextShaderProgram = pointTextShaderProgram;
-    }
-
-    public PointTextShaderProgram getPointTextShaderProgram() {
-        return pointTextShaderProgram;
-    }
-
     public TextShaderProgram getTextShaderProgram() {
         return textShaderProgram;
     }
 
-    public void setLineTextShaderProgram(LineTextShaderProgram lineTextShaderProgram) {
-        this.lineTextShaderProgram = lineTextShaderProgram;
-    }
-
-    public LineTextShaderProgram getLineTextShaderProgram() {
-        return lineTextShaderProgram;
-    }
 
     public void setTextSymbShaderProgram(TextSymbShaderProgram textSymbShaderProgram) {
         this.textSymbShaderProgram = textSymbShaderProgram;

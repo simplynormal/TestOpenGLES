@@ -13,6 +13,7 @@ import static android.opengl.GLES20.glEnableVertexAttribArray;
 import static android.opengl.GLES20.glVertexAttribPointer;
 
 import android.opengl.GLES20;
+import android.util.Log;
 
 import com.hcmut.test.programs.ShaderProgram;
 
@@ -23,10 +24,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class VertexArray {
-    protected static final int BYTES_PER_FLOAT = 4;
-    protected final ShaderProgram shaderProgram;
-    protected int vertexCount;
-    protected int id = -1;
+    private static final int BYTES_PER_FLOAT = 4;
+    private final ShaderProgram shaderProgram;
+    private final int vertexCount;
+    private int id = -1;
 
     private void genBuffer(float[] vertexData) {
         if (id != -1) {
@@ -44,12 +45,28 @@ public class VertexArray {
         GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, floatBuffer.capacity() * BYTES_PER_FLOAT, floatBuffer, GLES20.GL_STATIC_DRAW);
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
         id = vbo[0];
+//        Log.d("VertexArray", "genBuffer: " + id);
     }
 
     public VertexArray(ShaderProgram shaderProgram, float[] vertexData) {
         this.shaderProgram = shaderProgram;
         this.vertexCount = vertexData.length / shaderProgram.getTotalVertexAttribCount();
         genBuffer(vertexData);
+    }
+
+    public void changeData(float[] vertexData) {
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, id);
+        FloatBuffer floatBuffer = ByteBuffer
+                .allocateDirect(vertexData.length * BYTES_PER_FLOAT)
+                .order(ByteOrder.nativeOrder())
+                .asFloatBuffer()
+                .put(vertexData);
+        floatBuffer.position(0);
+        GLES20.glBufferSubData(GLES20.GL_ARRAY_BUFFER, 0, floatBuffer.capacity() * BYTES_PER_FLOAT, floatBuffer);
+        int error = GLES20.glGetError();
+        if (error != GLES20.GL_NO_ERROR) {
+            Log.e("VertexArray", "changeData: " + error);
+        }
     }
 
     public void setVertexAttribPointer(int dataOffset, int attributeLocation,
@@ -85,6 +102,7 @@ public class VertexArray {
 
     @Override
     protected void finalize() throws Throwable {
+//        Log.d("VertexArray", "finalize: " + id);
         if (id != -1) {
             GLES20.glDeleteBuffers(1, new int[]{id}, 0);
         }

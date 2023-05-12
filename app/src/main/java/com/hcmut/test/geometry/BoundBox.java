@@ -28,7 +28,18 @@ public class BoundBox {
     }
 
     public BoundBox scale(float scale) {
-        return new BoundBox(minX * scale, minY * scale, maxX * scale, maxY * scale);
+        // Scale from center
+        float centerX = (minX + maxX) / 2;
+        float centerY = (minY + maxY) / 2;
+        float width = maxX - minX;
+        float height = maxY - minY;
+        float newWidth = width * scale;
+        float newHeight = height * scale;
+        return new BoundBox(centerX - newWidth / 2, centerY - newHeight / 2, centerX + newWidth / 2, centerY + newHeight / 2);
+    }
+
+    public boolean contains(Point point) {
+        return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
     }
 
     @NonNull

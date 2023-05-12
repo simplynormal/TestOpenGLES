@@ -196,10 +196,14 @@ public class TextSymbolizer extends Symbolizer {
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, firstHalfCount);
             GLES20.glDrawArrays(GLES20.GL_TRIANGLES, firstHalfCount, pointCount - firstHalfCount);
         }
+
+
+        @Override
+        public void save(Config config) {
+        }
         
         @Override
-        public void draw(Config config) {
-            draw(config.getTextSymbShaderProgram());
+        public void draw() {
         }
     }
 
@@ -550,9 +554,9 @@ public class TextSymbolizer extends Symbolizer {
 
             int offsetIndex = 0;
             float lengthPerPixel = config.getLengthPerPixel();
+            float firstAngle = res.angles.get(0);
             for (int i = 0; i < res.polygons.size(); i++) {
                 Polygon polygon = res.polygons.get(i);
-                float firstAngle = res.angles.get(0);
                 if (offsetIndex + 1 < res.indices.size() && i == res.indices.get(offsetIndex + 1)) {
                     offsetIndex++;
                 }

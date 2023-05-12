@@ -8,6 +8,7 @@ import com.hcmut.test.osm.Node;
 import com.hcmut.test.osm.Way;
 import com.hcmut.test.remote.LayerResponse;
 import com.hcmut.test.remote.NodeResponse;
+import com.hcmut.test.remote.RetrofitClient;
 import com.hcmut.test.remote.WayResponse;
 
 import java.util.ArrayList;
@@ -21,6 +22,7 @@ public class MapView {
     private HashMap<Long, WayResponse> ways = new HashMap<>(0);
     private final HashMap<String, Layer> layersMap = new HashMap<>(78);
     private List<Layer> layersOrder;
+
     public void setLayers(List<Layer> layers) {
         layersOrder = layers;
         for (Layer layer : layers) {
@@ -47,6 +49,7 @@ public class MapView {
         for (NodeResponse nodeResponse : nodeResponses) {
             nodeMap.put(nodeResponse.id, new Node(nodeResponse.lon, nodeResponse.lat));
         }
+        HashMap<String, List<Way>> waysInLayer = new HashMap<>(layersMap.size());
         for (WayResponse wayResponse : wayResponses) {
             List<Node> wayNodes = new ArrayList<>();
             boolean nodeNotFound = false;
@@ -67,17 +70,27 @@ public class MapView {
             Way way = new Way(wayResponse.id, wayNodes, wayResponse.tags);
 
             for (String layerName : wayResponse.tags.keySet()) {
-                Layer curLayer = layersMap.get(layerName);
-                if (curLayer == null) {
-                    Log.e(TAG, "layer not found: " + layerName);
-                    continue;
-                }
-                curLayer.addWay(way);
+//                Layer curLayer = layersMap.get(layerName);
+//                if (curLayer == null) {
+//                    Log.e(TAG, "layer not found: " + layerName);
+//                    continue;
+//                }
+//                curLayer.addWay(way);
+                waysInLayer.computeIfAbsent(layerName, k -> new ArrayList<>()).add(way);
             }
         }
 
-        for (Layer l : layersMap.values()) {
-            l.save();
+        for (String layerName : waysInLayer.keySet()) {
+            Layer curLayer = layersMap.get(layerName);
+            List<Way> ways = waysInLayer.get(layerName);
+            if (curLayer == null || ways == null) {
+                Log.e(TAG, "layer not found: " + layerName);
+                continue;
+            }
+            RetrofitClient.THREAD_POOL_EXECUTOR.execute(() -> {
+                curLayer.addWays(ways);
+                curLayer.save();
+            });
         }
     }
 

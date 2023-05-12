@@ -1,4 +1,4 @@
-precision mediump float;
+precision highp float;
 
 uniform mat4 u_ProjectionMatrix;
 uniform mat4 u_ModelViewMatrix;
@@ -66,7 +66,7 @@ mat4 genTransformMatrix() {
     return scaleMatrix * rotationMatrix * translationMatrix * uprightMatrix;
 }
 
-mat4 genFontTransformMatrix(vec2 offset, float angle) {
+mat4 genFontModelMatrix(vec2 offset, float angle) {
     float DEFAULT_FONT_SIZE = 10.0;
     float amount = a_FontSize / DEFAULT_FONT_SIZE;
     mat4 magnifyMatrix = genTranslationMatrix(u_TextCenter.x, u_TextCenter.y, 0.0) * genScaleMatrix(amount, amount, amount) * genTranslationMatrix(-u_TextCenter.x, -u_TextCenter.y, 0.0);
@@ -78,17 +78,17 @@ mat4 genFontTransformMatrix(vec2 offset, float angle) {
 
 void main() {
     mat4 transformMatrix = genTransformMatrix();
-    mat4 fontTransformMatrix;
+    mat4 fontModelMatrix;
     float totalAngle = a_FirstAngle + u_RotationAngle;
     if (a_Mode == 0.0) {
-        fontTransformMatrix = genFontTransformMatrix(a_Offset, 0.0);
+        fontModelMatrix = genFontModelMatrix(a_Offset, 0.0);
     } else if (totalAngle > 90.0 && totalAngle < 270.0) {
-        fontTransformMatrix = genFontTransformMatrix(a_AltOffset, a_AltAngle);
+        fontModelMatrix = genFontModelMatrix(a_AltOffset, a_AltAngle);
     } else {
-        fontTransformMatrix = genFontTransformMatrix(a_Offset, a_Angle);
+        fontModelMatrix = genFontModelMatrix(a_Offset, a_Angle);
     }
 
-    gl_Position = u_ProjectionMatrix * u_ModelViewMatrix * transformMatrix * fontTransformMatrix * a_Position;
+    gl_Position = u_ProjectionMatrix * u_ModelViewMatrix * transformMatrix * fontModelMatrix * a_Position;
     gl_PointSize = 10.0;
     v_Color = a_Color;
 }

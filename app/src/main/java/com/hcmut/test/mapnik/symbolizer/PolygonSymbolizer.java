@@ -64,8 +64,11 @@ public class PolygonSymbolizer extends Symbolizer {
         }
 
         @Override
-        public void draw(Config config) {
-            draw(config.getColorShaderProgram());
+        public void save(Config config) {
+        }
+
+        @Override
+        public void draw() {
         }
     }
 

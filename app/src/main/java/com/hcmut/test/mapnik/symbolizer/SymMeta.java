@@ -9,10 +9,9 @@ import java.util.List;
 @SuppressLint("NewApi")
 public abstract class SymMeta {
     public abstract boolean isEmpty();
-
     public abstract SymMeta append(SymMeta other);
-
-    public abstract void draw(Config config);
+    public abstract void save(Config config);
+    public abstract void draw();
 
     protected static float[] appendTriangleStrip(float[] oldData, float[] newData, int totalVertexAttribCount) {
         if (oldData == null || oldData.length == 0) return newData;

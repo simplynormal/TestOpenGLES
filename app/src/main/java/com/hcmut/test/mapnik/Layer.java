@@ -8,7 +8,10 @@ import com.hcmut.test.utils.Config;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 
 @SuppressLint("NewApi")
@@ -17,9 +20,20 @@ public class Layer {
     private final Config config;
     private final List<String> stylesNames = new ArrayList<>();
     private final List<Style> styles = new ArrayList<>();
-    private final HashMap<Long, Way> waysMap = new HashMap<>();
-    private final TreeMap<Long, List<CombinedSymMeta>> symMetasMap = new TreeMap<>();
-    private TreeMap<Long, List<CombinedSymMeta>> drawingSymMetasMap = null;
+
+    private static class SymMetasWithWay {
+        public final List<CombinedSymMeta> symMetas;
+        public final Way way;
+
+        public SymMetasWithWay(List<CombinedSymMeta> symMetas, Way way) {
+            this.symMetas = symMetas;
+            this.way = way;
+        }
+    }
+
+    private final Set<Long> addedWays = new HashSet<>();
+    private final TreeMap<Integer, SymMetasWithWay> symMetasMap = new TreeMap<>();
+    private TreeMap<Integer, SymMetasWithWay> drawingSymMetasMap = null;
 
     public Layer(Config config, String name) {
         this.name = name;
@@ -40,15 +54,24 @@ public class Layer {
     }
 
     public void addWay(Way way) {
-        if (symMetasMap.containsKey(way.id)) return;
-        List<CombinedSymMeta> symMetaWithWays = new ArrayList<>(styles.size());
+        if (addedWays.contains(way.id)) return;
+        List<CombinedSymMeta> symMetas = new ArrayList<>(styles.size());
         for (int i = 0; i < styles.size(); i++) {
             Style style = styles.get(i);
             CombinedSymMeta combinedSymMeta = style.toDrawable(way);
-            symMetaWithWays.add(combinedSymMeta);
+            combinedSymMeta.save(config);
+            symMetas.add(combinedSymMeta);
         }
-        symMetasMap.put(way.id, symMetaWithWays);
-        waysMap.put(way.id, way);
+        addedWays.add(way.id);
+        if (symMetas.isEmpty()) return;
+        int order = Integer.parseInt(Objects.requireNonNull(Objects.requireNonNull(way.tags.get(name)).get("postgisOrder")));
+        symMetasMap.put(order, new SymMetasWithWay(symMetas, way));
+    }
+
+    public void addWays(List<Way> ways) {
+        for (Way way : ways) {
+            addWay(way);
+        }
     }
 
     public void save() {
@@ -57,14 +80,15 @@ public class Layer {
 
     public void draw() {
         if (drawingSymMetasMap == null) return;
-        for (long key : drawingSymMetasMap.keySet()) {
-            Way way = waysMap.get(key);
-            List<CombinedSymMeta> symMetas = drawingSymMetasMap.get(key);
-            if (way == null || symMetas == null) continue;
-            if (!way.getBoundBox().withinOrIntersects(config.getWorldBoundBox())) continue;
-
-            for (CombinedSymMeta symMeta : symMetas) {
-                symMeta.draw(config);
+        for (int i = 0; i < styles.size(); i++) {
+            for (int key : drawingSymMetasMap.keySet()) {
+                SymMetasWithWay symMetasWithWay = drawingSymMetasMap.get(key);
+                if (symMetasWithWay == null) continue;
+                List<CombinedSymMeta> symMetas = symMetasWithWay.symMetas;
+                Way way = symMetasWithWay.way;
+                if (way == null || symMetas == null) continue;
+                if (!way.getBoundBox().withinOrIntersects(config.getWorldBoundBox())) continue;
+                symMetas.get(i).draw();
             }
         }
     }

@@ -18,8 +18,12 @@ public class CombinedSymMeta extends SymMeta {
     private final List<float[]> textLineDrawables;
     private int firstHalfCount = 0;
     private int textFirstHalfCount = 0;
+    private float[] shapeDrawable = null;
+    private float[] textDrawable = null;
     private VertexArray vertexArray = null;
     private VertexArray textVertexArray = null;
+    private ColorShaderProgram colorShaderProgram = null;
+    private TextSymbShaderProgram textSymbShaderProgram = null;
 
     public CombinedSymMeta() {
         lineDrawables = new ArrayList<>(0);
@@ -131,11 +135,11 @@ public class CombinedSymMeta extends SymMeta {
 
 
     private void draw(ColorShaderProgram shaderProgram) {
-        if (vertexArray == null && lineDrawables.isEmpty() && polygonDrawables.isEmpty()) return;
+        if (vertexArray == null && shapeDrawable == null && lineDrawables.isEmpty() && polygonDrawables.isEmpty()) return;
         if (vertexArray == null) {
-            vertexArray = new VertexArray(shaderProgram, getDrawable());
-            lineDrawables.clear();
-            polygonDrawables.clear();
+            assert shapeDrawable != null;
+            vertexArray = new VertexArray(shaderProgram, shapeDrawable);
+            shapeDrawable = null;
         }
         shaderProgram.useProgram();
         vertexArray.setDataFromVertexData();
@@ -147,16 +151,17 @@ public class CombinedSymMeta extends SymMeta {
     }
 
     private void drawText(TextSymbShaderProgram shaderProgram) {
-        if (textVertexArray == null && textLineDrawables.isEmpty() && textPolygonDrawables.isEmpty()) return;
+        if (textVertexArray == null && textDrawable == null && textLineDrawables.isEmpty() && textPolygonDrawables.isEmpty()) return;
+
         if (textVertexArray == null) {
-            textVertexArray = new VertexArray(shaderProgram, getTextDrawable());
-            textLineDrawables.clear();
-            textPolygonDrawables.clear();
+            assert textDrawable != null;
+            textVertexArray = new VertexArray(shaderProgram, textDrawable);
+            textDrawable = null;
         }
-        shaderProgram.useProgram();
+
+        textVertexArray.setDataFromVertexData();
         Point textCenter = TextSymbolizer.TextDrawable.getTextCenter();
         GLES20.glUniform2f(shaderProgram.getUniformLocation(TextSymbShaderProgram.U_TEXT_CENTER), textCenter.x, textCenter.y);
-        textVertexArray.setDataFromVertexData();
         int pointCount = textVertexArray.getVertexCount();
         if (textFirstHalfCount > 0) {
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, textFirstHalfCount);
@@ -165,8 +170,24 @@ public class CombinedSymMeta extends SymMeta {
     }
 
     @Override
-    public void draw(Config config) {
-        draw(config.getColorShaderProgram());
-        drawText(config.getTextSymbShaderProgram());
+    public void save(Config config) {
+        colorShaderProgram = config.getColorShaderProgram();
+        textSymbShaderProgram = config.getTextSymbShaderProgram();
+        if (shapeDrawable == null && !(lineDrawables.isEmpty() && polygonDrawables.isEmpty())) {
+            shapeDrawable = getDrawable();
+            lineDrawables.clear();
+            polygonDrawables.clear();
+        }
+        if (textDrawable == null && !(textLineDrawables.isEmpty() && textPolygonDrawables.isEmpty())) {
+            textDrawable = getTextDrawable();
+            textLineDrawables.clear();
+            textPolygonDrawables.clear();
+        }
+    }
+
+    @Override
+    public void draw() {
+        draw(colorShaderProgram);
+        drawText(textSymbShaderProgram);
     }
 }

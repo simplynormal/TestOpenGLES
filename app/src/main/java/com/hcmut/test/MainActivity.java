@@ -52,7 +52,7 @@ final class MultisampleConfigChooser implements GLSurfaceView.EGLConfigChooser {
                 EGL10.EGL_DEPTH_SIZE, DEPTH,
                 EGL10.EGL_RENDERABLE_TYPE, 4 /* EGL_OPENGL_ES2_BIT */,
                 EGL10.EGL_SAMPLE_BUFFERS, 1 /* true */,
-                EGL10.EGL_SAMPLES, 2,
+                EGL10.EGL_SAMPLES, 4,
                 EGL10.EGL_NONE).tryConfig(gl, display);
         if (config != null) {
             System.out.println("Using normal multisampling");
@@ -121,45 +121,10 @@ final class MultisampleConfigChooser implements GLSurfaceView.EGLConfigChooser {
                     return null;
                 }
 
-                return findConfig(gl, display, configs, tmp);
+                return configs[0];
             }
 
             return null;
-        }
-
-        @Nullable
-        private EGLConfig findConfig(@NonNull EGL10 gl, @NonNull EGLDisplay display, @NonNull EGLConfig[] configs, int[] tmp) {
-            // sometimes eglChooseConfig returns configurations with not requested
-            // options: even though we asked for rgb565 configurations, rgb888
-            // configurations are considered to be "better" and returned first.
-            // We need to explicitly filter data returned by eglChooseConfig
-            // adn choose the right configuration.
-            for (final EGLConfig config : configs) {
-                if (config != null && isDesiredConfig(gl, display, tmp, config)) {
-                    return config;
-                }
-            }
-
-            return null;
-        }
-
-        private boolean isDesiredConfig(@NonNull EGL10 gl, @NonNull EGLDisplay display, @NonNull int[] tmp, @NonNull EGLConfig config) {
-            for (int i = 0; i + 1 < spec.length; i += 2) {
-                final int attribute = spec[i];
-                final int desiredValue = spec[i + 1];
-                final int actualValue = findConfigAttrib(gl, display, config, attribute, 0, tmp);
-                if (attribute == EGL10.EGL_DEPTH_SIZE) {
-                    if (actualValue < desiredValue) {
-                        return false;
-                    }
-                } else {
-                    if (desiredValue != actualValue) {
-                        return false;
-                    }
-                }
-            }
-
-            return true;
         }
     }
 }

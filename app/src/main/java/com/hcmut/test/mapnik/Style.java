@@ -16,12 +16,6 @@ public class Style {
         this.name = name;
     }
 
-//    public void validateWay(long key, Way way) {
-//        for (Rule rule : rules) {
-//            rule.validateWay(key, way);
-//        }
-//    }
-
     public CombinedSymMeta toDrawable(Way way) {
         CombinedSymMeta combinedSymMeta = new CombinedSymMeta();
         for (Rule rule : rules) {
@@ -40,28 +34,6 @@ public class Style {
             hasText = true;
         }
     }
-
-//    public void save() {
-//        for (Rule rule : rules) {
-//            rule.save();
-//        }
-//    }
-
-    public void save() {
-    }
-
-//    public void draw() {
-//        for (Rule rule : rules) {
-//            rule.draw();
-//        }
-//    }
-
-//    public void draw() {
-//        if (orderedSymMetaWithWays.isEmpty()) return;
-//        for (SymMetaWithWay symMetaWithWay : orderedSymMetaWithWays) {
-//            symMetaWithWay.symMeta.draw(config);
-//        }
-//    }
 
     public boolean hasTextSymbolizer() {
         return hasText;

@@ -51,6 +51,6 @@ mat4 genTransformMatrix() {
 void main() {
     mat4 transformMatrix = genTransformMatrix();
     gl_Position = u_ProjectionMatrix * u_ModelViewMatrix * transformMatrix * a_Position;
-    gl_PointSize = 10.0;
+    gl_PointSize = 50.0;
     v_Color = a_Color;
 }
