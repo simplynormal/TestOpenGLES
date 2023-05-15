@@ -110,10 +110,10 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         config.setTextSymbShaderProgram(new TextSymbShaderProgram(config, projectionMatrix, modelViewMatrix));
 //        config.setFrameShaderProgram(frameShaderProgram);
 
-        minLon = 106.73101f;
-        maxLon = 106.73298f;
-        minLat = 10.73037f;
-        maxLat = 10.73137f;
+//        minLon = 106.73101f;
+//        maxLon = 106.73298f;
+//        minLat = 10.73037f;
+//        maxLat = 10.73137f;
 
 //        minLon = 106.73603f;
 //        maxLon = 106.74072f;
@@ -125,20 +125,22 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 //        minLat = 10.72307f;
 //        maxLat = 10.72860f;
 
-//        minLon = 106.7000f;
-//        maxLon = 106.7202f;
-//        minLat = 10.7382f;
-//        maxLat = 10.7492f;
+        minLon = 106.7000f;
+        maxLon = 106.7202f;
+        minLat = 10.7382f;
+        maxLat = 10.7492f;
 
 //        minLon = 106.7187f;
 //        maxLon = 106.7401f;
 //        minLat = 10.7237f;
 //        maxLat = 10.7350f;
 
-        originX = 106.71196f;
-        originY = 10.731709f;
+//        originX = 106.80031f;
+//        originY = 10.87120f;
+        originX = (minLon + maxLon) / 2;
+        originY = (minLat + maxLat) / 2;
         config.setOriginFromWGS84(originX, originY);
-        config.setScaleDenominator(1000);
+        config.setScaleDenominator(1066);
 
         float scaled = CoordinateTransform.getScalePixel(config.getScaleDenominator()) * config.getLengthPerPixel();
         ProjCoordinate p = CoordinateTransform.wgs84ToWebMercator(originY, originX);
@@ -156,7 +158,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             throw new RuntimeException(e);
         }
 
-        mapView = new MapView();
+        mapView = new MapView(config);
         mapView.setLayers(styleParser.layers);
     }
 

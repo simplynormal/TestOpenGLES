@@ -4,12 +4,12 @@ plugins {
 
 android {
     namespace 'com.hcmut.test'
-    compileSdk 32
+    compileSdk 33
 
     defaultConfig {
         applicationId "com.hcmut.test"
         minSdk 21
-        targetSdk 32
+        targetSdk 33
         versionCode 1
         versionName "1.0"
 
@@ -37,14 +37,21 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.navigation:navigation-fragment:2.5.3'
     implementation 'androidx.navigation:navigation-ui:2.5.3'
+
+    // turn-by-turn navigation
     implementation 'org.osgeo:proj4j:0.1.0'
     implementation 'org.locationtech.jts:jts-core:1.18.2'
     implementation 'org.orbisgis:poly2tri-core:0.1.2'
 
-    //retrofit
+    // retrofit
     implementation 'com.squareup.retrofit2:retrofit:2.6.1'
     implementation 'com.squareup.retrofit2:converter-gson:2.6.1'
     implementation 'com.squareup.okhttp3:logging-interceptor:4.9.0'
+
+    // room
+    def room_version = "2.5.1"
+    implementation "androidx.room:room-runtime:$room_version"
+    annotationProcessor "androidx.room:room-compiler:$room_version"
 
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'

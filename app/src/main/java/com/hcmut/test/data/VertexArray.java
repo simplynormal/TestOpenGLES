@@ -81,18 +81,13 @@ public class VertexArray {
         shaderProgram.useProgram();
         List<ShaderProgram.VertexAttrib> attribs = shaderProgram.getVertexAttribs();
         int totalComponents = shaderProgram.getTotalVertexAttribCount();
-        List<String> attribNamesNotfound = new ArrayList<>(0);
         for (ShaderProgram.VertexAttrib attrib : attribs) {
             int location = shaderProgram.getAttributeLocation(attrib.name);
             if (location == -1) {
-                attribNamesNotfound.add(attrib.name);
+//                Log.e("VertexArray", "setDataFromVertexData: " + attrib.name + " not found");
                 continue;
             }
             setVertexAttribPointer(attrib.offset, location, attrib.count, totalComponents);
-        }
-
-        if (attribNamesNotfound.size() > 0) {
-            throw new RuntimeException("Attribute(s) not found: " + attribNamesNotfound);
         }
     }
 

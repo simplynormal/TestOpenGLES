@@ -3,9 +3,13 @@ package com.hcmut.test.utils;
 import android.annotation.SuppressLint;
 import android.content.Context;
 
+import androidx.room.Room;
+
 import com.hcmut.test.algorithm.CoordinateTransform;
 import com.hcmut.test.geometry.BoundBox;
 import com.hcmut.test.geometry.Vector;
+import com.hcmut.test.local.AppDatabase;
+import com.hcmut.test.local.WayDao;
 import com.hcmut.test.osm.Node;
 import com.hcmut.test.programs.ColorShaderProgram;
 import com.hcmut.test.programs.FrameShaderProgram;
@@ -30,6 +34,7 @@ public class Config {
     private TextSymbShaderProgram textSymbShaderProgram;
     private FrameShaderProgram frameShaderProgram;
     public final Context context;
+    public final WayDao wayDao;
     private int width;
     private int height;
     private float lengthPerPixel;
@@ -59,6 +64,9 @@ public class Config {
         this.height = 0;
         this.lengthPerPixel = 0;
         this.scaleDenominator = 0;
+
+        AppDatabase db = Room.databaseBuilder(context, AppDatabase.class, AppDatabase.DATABASE_NAME).build();
+        wayDao = db.wayDao();
     }
 
     public Runnable addListener(BiConsumer<Config, Set<Property>> listener) {

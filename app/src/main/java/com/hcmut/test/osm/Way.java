@@ -17,7 +17,7 @@ public class Way {
     private Polygon polygon = null;
     public final HashMap<String, HashMap<String, String>> tags;
     public final ArrayList<Node> nodes;
-    private static final HashMap<Long, Boolean> alreadyDrawnTextPointMap = new HashMap<>();
+    private boolean alreadyDrawnTextPointMap = false;
     private BoundBox boundBox = null;
     private boolean bboxTransformed = false;
     public Way() {
@@ -55,11 +55,11 @@ public class Way {
     }
 
     public void setAlreadyDrawnTextPoint(boolean alreadyDrawnTextPoint) {
-        alreadyDrawnTextPointMap.put(id, alreadyDrawnTextPoint);
+        this.alreadyDrawnTextPointMap = alreadyDrawnTextPoint;
     }
 
     public boolean hasAlreadyDrawnTextPoint() {
-        return alreadyDrawnTextPointMap.containsKey(id) && Boolean.TRUE.equals(alreadyDrawnTextPointMap.get(id));
+        return alreadyDrawnTextPointMap;
     }
 
     public boolean isClosed() {
