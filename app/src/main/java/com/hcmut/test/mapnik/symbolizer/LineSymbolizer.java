@@ -1,5 +1,6 @@
 package com.hcmut.test.mapnik.symbolizer;
 
+import android.annotation.SuppressLint;
 import android.opengl.GLES20;
 
 import androidx.annotation.NonNull;
@@ -19,13 +20,17 @@ import com.hcmut.test.utils.Config;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 // LineSymbolizer keys: [stroke-opacity, offset, stroke-linejoin, stroke-dasharray, stroke-width, stroke, clip, stroke-linecap]
 public class LineSymbolizer extends Symbolizer {
     static class LineSymMeta extends SymMeta {
         final List<float[]> drawables;
         protected VertexArray vertexArray = null;
+        private ColorShaderProgram shaderProgram;
 
         public LineSymMeta() {
             this.drawables = new ArrayList<>(0);
@@ -69,10 +74,12 @@ public class LineSymbolizer extends Symbolizer {
 
         @Override
         public void save(Config config) {
+            shaderProgram = config.getColorShaderProgram();
         }
 
         @Override
         public void draw() {
+            draw(shaderProgram);
         }
     }
 
@@ -83,7 +90,7 @@ public class LineSymbolizer extends Symbolizer {
     private final StrokeGenerator.StrokeLineJoin strokeLineJoin;
     private final float offset;
 
-    public LineSymbolizer(Config config, @Nullable String strokeWidth, @Nullable String strokeColor, @Nullable String strokeDashArray, @Nullable String strokeLineCap, @Nullable String strokeLineJoin, @Nullable String strokeOpacity, String offset) {
+    public LineSymbolizer(Config config, @Nullable String strokeWidth, @Nullable String strokeColor, @Nullable String strokeDashArray, @Nullable String strokeLineCap, @Nullable String strokeLineJoin, @Nullable String strokeOpacity, @Nullable String offset) {
         super(config);
         this.strokeWidth = strokeWidth == null ? 0 : Float.parseFloat(strokeWidth);
         this.strokeColor = parseColorString(strokeColor, strokeOpacity == null ? 1 : Float.parseFloat(strokeOpacity));
@@ -206,11 +213,11 @@ public class LineSymbolizer extends Symbolizer {
 
     private float[] drawLineStrip(LineStrip lineStrip) {
         float strokeWidth = this.strokeWidth * config.getLengthPerPixel();
-//        System.out.println("Rendering line with stroke width: " + strokeWidth);
         TriangleStrip triangleStrip = StrokeGenerator.generateStroke(lineStrip, 8, strokeWidth / 2, strokeLineCap).toTriangleStrip();
         return ColorShaderProgram.toVertexData(triangleStrip, strokeColor);
     }
 
+    @SuppressLint("NewApi")
     @Override
     public SymMeta toDrawable(Way way, String layerName) {
         float scaledPixel = CoordinateTransform.getScalePixel(config.getScaleDenominator());

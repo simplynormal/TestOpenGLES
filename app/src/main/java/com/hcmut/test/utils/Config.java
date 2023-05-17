@@ -5,11 +5,12 @@ import android.content.Context;
 
 import androidx.room.Room;
 
+import com.hcmut.test.BuildConfig;
 import com.hcmut.test.algorithm.CoordinateTransform;
 import com.hcmut.test.geometry.BoundBox;
 import com.hcmut.test.geometry.Vector;
 import com.hcmut.test.local.AppDatabase;
-import com.hcmut.test.local.WayDao;
+import com.hcmut.test.local.DbDao;
 import com.hcmut.test.osm.Node;
 import com.hcmut.test.programs.ColorShaderProgram;
 import com.hcmut.test.programs.FrameShaderProgram;
@@ -34,7 +35,7 @@ public class Config {
     private TextSymbShaderProgram textSymbShaderProgram;
     private FrameShaderProgram frameShaderProgram;
     public final Context context;
-    public final WayDao wayDao;
+    public final DbDao dbDao;
     private int width;
     private int height;
     private float lengthPerPixel;
@@ -65,8 +66,11 @@ public class Config {
         this.lengthPerPixel = 0;
         this.scaleDenominator = 0;
 
-        AppDatabase db = Room.databaseBuilder(context, AppDatabase.class, AppDatabase.DATABASE_NAME).build();
-        wayDao = db.wayDao();
+        AppDatabase db;
+        db = Room.databaseBuilder(context, AppDatabase.class, AppDatabase.DATABASE_NAME)
+                .fallbackToDestructiveMigration()
+                .build();
+        dbDao = db.dbDao();
     }
 
     public Runnable addListener(BiConsumer<Config, Set<Property>> listener) {
@@ -125,9 +129,9 @@ public class Config {
         this.height = height;
         if (width > 0 && height > 0) {
             if (width > height) {
-                this.lengthPerPixel = 4f / height / 0.95f;
+                this.lengthPerPixel = 6f / height / 0.95f;
             } else {
-                this.lengthPerPixel = 4f / width / 0.95f;
+                this.lengthPerPixel = 6f / width / 0.95f;
             }
         }
         notifyListeners(Set.of(Property.WIDTH, Property.HEIGHT, Property.PIXEL_PER_LENGTH));

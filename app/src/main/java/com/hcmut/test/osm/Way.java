@@ -31,8 +31,27 @@ public class Way {
         for (int i = 0; i < vertices.length; i += 3) {
             nodes.add(new Node(vertices[i], vertices[i + 1]));
         }
-        tags = new HashMap<>();
+        tags = new HashMap<>(0);
         id = -1;
+    }
+
+    public Way(List<Node> nodes) {
+        this.nodes = new ArrayList<>(nodes);
+        this.tags = new HashMap<>(0);
+        this.id = -1;
+
+        float minX = Float.MAX_VALUE;
+        float minY = Float.MAX_VALUE;
+        float maxX = Float.MIN_VALUE;
+        float maxY = Float.MIN_VALUE;
+        for (Node node : nodes) {
+            minX = Math.min(minX, node.lon);
+            minY = Math.min(minY, node.lat);
+            maxX = Math.max(maxX, node.lon);
+            maxY = Math.max(maxY, node.lat);
+        }
+
+        boundBox = new BoundBox(minX, minY, maxX, maxY);
     }
 
     public Way(long id, List<Node> nodes, HashMap<String, HashMap<String, String>> tags) {

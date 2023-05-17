@@ -21,10 +21,9 @@ import java.util.List;
 @SuppressLint("NewApi")
 public class StrokeGenerator {
     private static final GeometryFactory geometryFactory = new GeometryFactory();
+
     public enum StrokeLineJoin {
-        MITER,
-        BEVEL,
-        ROUND
+        MITER, BEVEL, ROUND
     }
 
     public enum StrokeLineCap {

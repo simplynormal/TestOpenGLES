@@ -142,22 +142,22 @@ public class Rule {
                         }
                         break;
                     case ">":
-                        if (Float.parseFloat(keyVal) <= Float.parseFloat(value)) {
+                        if (keyVal.equals("null") || Float.parseFloat(keyVal) <= Float.parseFloat(value)) {
                             return false;
                         }
                         break;
                     case "<":
-                        if (Float.parseFloat(keyVal) >= Float.parseFloat(value)) {
+                        if (keyVal.equals("null") || Float.parseFloat(keyVal) >= Float.parseFloat(value)) {
                             return false;
                         }
                         break;
                     case ">=":
-                        if (Float.parseFloat(keyVal) < Float.parseFloat(value)) {
+                        if (keyVal.equals("null") || Float.parseFloat(keyVal) < Float.parseFloat(value)) {
                             return false;
                         }
                         break;
                     case "<=":
-                        if (Float.parseFloat(keyVal) > Float.parseFloat(value)) {
+                        if (keyVal.equals("null") || Float.parseFloat(keyVal) > Float.parseFloat(value)) {
                             return false;
                         }
                         break;

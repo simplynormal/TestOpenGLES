@@ -10,8 +10,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.hcmut.test.algorithm.CoordinateTransform;
-import com.hcmut.test.data.Framebuffer;
-import com.hcmut.test.data.VertexArray;
+import com.hcmut.test.algorithm.TileSystem;
 import com.hcmut.test.geometry.BoundBox;
 import com.hcmut.test.geometry.Point;
 import com.hcmut.test.geometry.Vector;
@@ -19,16 +18,13 @@ import com.hcmut.test.geometry.equation.LineEquation;
 import com.hcmut.test.geometry.equation.LineEquation3D;
 import com.hcmut.test.geometry.equation.Plane;
 import com.hcmut.test.mapnik.StyleParser;
-import com.hcmut.test.object.FullScreenQuad;
 import com.hcmut.test.object.MapView;
-import com.hcmut.test.programs.FrameShaderProgram;
+import com.hcmut.test.object.UserIcon;
 import com.hcmut.test.programs.ColorShaderProgram;
-import com.hcmut.test.programs.TextShaderProgram;
 import com.hcmut.test.programs.TextSymbShaderProgram;
 import com.hcmut.test.remote.BaseResponse;
 import com.hcmut.test.remote.LayerRequest;
 import com.hcmut.test.remote.LayerResponse;
-import com.hcmut.test.remote.RetrofitClient;
 import com.hcmut.test.utils.Config;
 
 import org.osgeo.proj4j.ProjCoordinate;
@@ -48,11 +44,8 @@ import retrofit2.Response;
 
 public class TestRenderer implements GLSurfaceView.Renderer {
     private static final String TAG = TestRenderer.class.getSimpleName();
-    private FrameShaderProgram frameShaderProgram;
     private MapView mapView;
     private final Config config;
-    private Framebuffer framebuffer;
-    private FullScreenQuad fullScreenQuad;
     private final float[] vertices = {
             0f, 0f, 0f,
             0.5f, 0f, 0f,
@@ -82,17 +75,9 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     };
     private Point oldPos = null;
     private List<Point> oldPosList;
-    private float minLon = 0;
-    private float maxLon = 0;
-    private float minLat = 0;
-    private float maxLat = 0;
-    private float originX = 0;
-    private float originY = 0;
-    private BoundBox boundBox = new BoundBox(-180, -90, 180, 90);
-    private List<BoundBox> boundBoxList = new ArrayList<>();
-    private static final float TILE_WIDTH = 0.0113f;
-    private static final float TILE_HEIGHT = 0.0214f;
-    private VertexArray va = null;
+    private float curLon = 0;
+    private float curLat = 0;
+    private UserIcon userIcon;
 
     public TestRenderer(Context context) {
         config = new Config(context);
@@ -103,50 +88,49 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         int height = config.context.getResources().getDisplayMetrics().heightPixels;
         config.setWidthHeight(width, height);
 
-        frameShaderProgram = new FrameShaderProgram(config);
-
         config.setColorShaderProgram(new ColorShaderProgram(config, projectionMatrix, modelViewMatrix));
-//        config.setTextShaderProgram(new TextShaderProgram(config, projectionMatrix, modelViewMatrix));
         config.setTextSymbShaderProgram(new TextSymbShaderProgram(config, projectionMatrix, modelViewMatrix));
-//        config.setFrameShaderProgram(frameShaderProgram);
 
-//        minLon = 106.73101f;
-//        maxLon = 106.73298f;
-//        minLat = 10.73037f;
-//        maxLat = 10.73137f;
+//        float minLon = 106.73101f;
+//        float maxLon = 106.73298f;
+//        float minLat = 10.73037f;
+//        float maxLat = 10.73137f;
 
-//        minLon = 106.73603f;
-//        maxLon = 106.74072f;
-//        minLat = 10.73122f;
-//        maxLat = 10.73465f;
+//        float minLon = 106.73603f;
+//        float maxLon = 106.74072f;
+//        float minLat = 10.73122f;
+//        float maxLat = 10.73465f;
 
-//        minLon = 106.71410f;
-//        maxLon = 106.72421f;
-//        minLat = 10.72307f;
-//        maxLat = 10.72860f;
+//        float minLon = 106.71410f;
+//        float maxLon = 106.72421f;
+//        float minLat = 10.72307f;
+//        float maxLat = 10.72860f;
 
-        minLon = 106.7000f;
-        maxLon = 106.7202f;
-        minLat = 10.7382f;
-        maxLat = 10.7492f;
+        float minLon = 106.7000f;
+        float maxLon = 106.7202f;
+        float minLat = 10.7382f;
+        float maxLat = 10.7492f;
 
-//        minLon = 106.7187f;
-//        maxLon = 106.7401f;
-//        minLat = 10.7237f;
-//        maxLat = 10.7350f;
+//        float minLon = 106.7187f;
+//        float maxLon = 106.7401f;
+//        float minLat = 10.7237f;
+//        float maxLat = 10.7350f;
 
-//        originX = 106.80031f;
-//        originY = 10.87120f;
-        originX = (minLon + maxLon) / 2;
-        originY = (minLat + maxLat) / 2;
-        config.setOriginFromWGS84(originX, originY);
+//        originX = (minLon + maxLon) / 2;
+//        originY = (minLat + maxLat) / 2;
+//        curLon = 106.65902182459831f;
+//        curLat = 10.771236883015353f;
+        // 106.65609, 10.780013
+        curLon = 106.65609f;
+        curLat = 10.780013f;
+        config.setOriginFromWGS84(curLon, curLat);
         config.setScaleDenominator(1066);
 
         float scaled = CoordinateTransform.getScalePixel(config.getScaleDenominator()) * config.getLengthPerPixel();
-        ProjCoordinate p = CoordinateTransform.wgs84ToWebMercator(originY, originX);
+        ProjCoordinate p = CoordinateTransform.wgs84ToWebMercator(curLat, curLon);
         Point origin = new Point((float) p.x, (float) p.y).transform(config.getOriginX(), config.getOriginY(), scaled);
         Log.d(TAG, "initOpenGL: origin: " + origin);
-        va = new VertexArray(config.getColorShaderProgram(), ColorShaderProgram.toVertexData(origin, 1, 0, 0, 1));
+        userIcon = new UserIcon(config, origin);
     }
 
     void read() {
@@ -162,34 +146,6 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         mapView.setLayers(styleParser.layers);
     }
 
-    void request() {
-        System.out.println("before postGetLayer");
-        float minLon = originX - TILE_WIDTH / 2;
-        float maxLon = originX + TILE_WIDTH / 2;
-        float minLat = originY - TILE_HEIGHT / 2;
-        float maxLat = originY + TILE_HEIGHT / 2;
-        boundBox = new BoundBox(minLon, minLat, maxLon, maxLat).scale(0.5f);
-        LayerRequest layerRequest = new LayerRequest(minLon, maxLon, minLat, maxLat);
-        layerRequest.post(new Callback<>() {
-            @Override
-            public void onResponse(@NonNull Call<BaseResponse<LayerResponse>> call, @NonNull Response<BaseResponse<LayerResponse>> response) {
-                if (response.body() == null) {
-                    Log.e(TAG, "response.body() == null");
-                    return;
-                }
-                LayerResponse layerResponse = response.body().getData();
-                Log.d(TAG, "layerResponse = " + layerResponse);
-                mapView.validateResponse(layerResponse);
-            }
-
-            @Override
-            public void onFailure(@NonNull Call<BaseResponse<LayerResponse>> call, @NonNull Throwable t) {
-                Log.e(TAG, "onFailure: " + t.getMessage());
-            }
-        });
-        System.out.println("after postGetLayer");
-    }
-
     @Override
     public void onSurfaceCreated(GL10 glUnused, EGLConfig config) {
         GLES20.glClearColor(0.95f, 0.94f, 0.91f, 1f);
@@ -198,8 +154,6 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
         initOpenGL();
         read();
-        RetrofitClient.THREAD_POOL_EXECUTOR.execute(this::request);
-//        request();
     }
 
     @Override
@@ -211,12 +165,9 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
         config.addListener(this::onTransform);
         onTransform(config, Set.of(Config.Property.SCALE, Config.Property.ROTATION, Config.Property.TRANSLATION));
-
-//        framebuffer = new Framebuffer(width, height);
-//        fullScreenQuad = new FullScreenQuad(frameShaderProgram);
     }
 
-    void transformOrigin() {
+    void transformOrigin(BoundBox userBbox) {
         float scaled = CoordinateTransform.getScalePixel(config.getScaleDenominator()) * config.getLengthPerPixel();
         float[] transformMatrix = new float[16];
         Matrix.setIdentityM(transformMatrix, 0);
@@ -230,19 +181,28 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         Matrix.scaleM(transformMatrix, 0, scale, scale, 1);
 
         float[] originTransformed = new float[4];
-        Matrix.multiplyMV(originTransformed, 0, transformMatrix, 0, new float[]{0, 0, 0, 1}, 0);
+        Point user = screenToWorld(List.of(new Point(0, -0.3f))).get(0);
+        Matrix.multiplyMV(originTransformed, 0, transformMatrix, 0, new float[]{user.x, user.y, 0, 1}, 0);
 
-        float x = originTransformed[0] / scaled + config.getOriginX();
-        float y = originTransformed[1] / scaled + config.getOriginY();
+        float x = user.x / scaled + config.getOriginX();
+        float y = user.y / scaled + config.getOriginY();
+        float bboxMinX = userBbox.minX / scaled + config.getOriginX();
+        float bboxMinY = userBbox.minY / scaled + config.getOriginY();
+        float bboxMaxX = userBbox.maxX / scaled + config.getOriginX();
+        float bboxMaxY = userBbox.maxY / scaled + config.getOriginY();
 
-        ProjCoordinate p2 = CoordinateTransform.webMercatorToWgs84(x, y);
-        originX = (float) p2.x;
-        originY = (float) p2.y;
-        Log.d(TAG, "transformOrigin: " + originX + ", " + originY);
+        ProjCoordinate transformedPoint = CoordinateTransform.webMercatorToWgs84(x, y);
+        curLon = (float) transformedPoint.x;
+        curLat = (float) transformedPoint.y;
+        transformedPoint = CoordinateTransform.webMercatorToWgs84(bboxMinX, bboxMinY);
+        Point bboxMin = new Point((float) transformedPoint.x, (float) transformedPoint.y);
+        transformedPoint = CoordinateTransform.webMercatorToWgs84(bboxMaxX, bboxMaxY);
+        Point bboxMax = new Point((float) transformedPoint.x, (float) transformedPoint.y);
+        float radius = bboxMin.distance(bboxMax) / 2;
+        Log.d(TAG, "transformOrigin: " + curLon + ", " + curLat);
 
-        if (!boundBox.contains(new Point(originX, originY))) {
-            request();
-        }
+//        userIcon.relocate(new Point(user.x, user.y));
+        mapView.setCurLocation(curLon, curLat, radius);
     }
 
     void onTransform(Config config, Set<Config.Property> properties) {
@@ -263,10 +223,10 @@ public class TestRenderer implements GLSurfaceView.Renderer {
             maxY = Math.max(maxY, point.y);
         }
 
-        config.setWorldBoundBox(new BoundBox(minX, minY, maxX, maxY));
+        BoundBox boundBox = new BoundBox(minX, minY, maxX, maxY);
+        config.setWorldBoundBox(boundBox);
 
-        transformOrigin();
-//        System.out.println(config.getWorldBoundBox());
+        transformOrigin(boundBox);
     }
 
     private void divideByW(float[] vector) {
@@ -315,45 +275,6 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         }
 
         return result;
-    }
-
-    private LineEquation convertNormalized2DPointToLine(
-            float normalizedX, float normalizedY) {
-        float[] transformMatrix = getTransformMatrix();
-        // We'll convert these normalized device coordinates into world-space
-        // coordinates. We'll pick a point on the near and far planes, and draw a
-        // line between them. To do this transform, we need to first multiply by
-        // the inverse matrix, and then we need to undo the perspective divide.
-        final float[] nearPointNdc = {normalizedX, normalizedY, -1, 1};
-        final float[] farPointNdc = {normalizedX, normalizedY, 1, 1};
-
-        final float[] nearPointWorld = new float[4];
-        final float[] farPointWorld = new float[4];
-
-        float[] allMatrix = new float[16];
-        float[] invertedAllMatrix = new float[16];
-        Matrix.multiplyMM(allMatrix, 0, modelViewMatrix, 0, transformMatrix, 0);
-        Matrix.multiplyMM(allMatrix, 0, projectionMatrix, 0, allMatrix, 0);
-        Matrix.invertM(invertedAllMatrix, 0, allMatrix, 0);
-        Matrix.multiplyMV(
-                nearPointWorld, 0, invertedAllMatrix, 0, nearPointNdc, 0);
-        Matrix.multiplyMV(
-                farPointWorld, 0, invertedAllMatrix, 0, farPointNdc, 0);
-
-        // Why are we dividing by W? We multiplied our vector by an inverse
-        // matrix, so the W value that we end up is actually the *inverse* of
-        // what the projection matrix would create. By dividing all 3 components
-        // by W, we effectively undo the hardware perspective divide.
-        divideByW(nearPointWorld);
-        divideByW(farPointWorld);
-
-        // We don't care about the W value anymore, because our points are now
-        // in world coordinates.
-        Point nearPointRay = new Point(nearPointWorld[0], nearPointWorld[1], nearPointWorld[2]);
-
-        Point farPointRay = new Point(farPointWorld[0], farPointWorld[1], farPointWorld[2]);
-
-        return new LineEquation(nearPointRay, farPointRay);
     }
 
     private float[] getTransformMatrix() {
@@ -453,21 +374,13 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
     @Override
     public void onDrawFrame(GL10 glUnused) {
-//        framebuffer.bind();
-//        GLES20.glViewport(0, 0, framebuffer.getWidth(), framebuffer.getHeight());
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_STENCIL_BUFFER_BIT);
 
         mapView.draw();
-//        float scaled = CoordinateTransform.getScalePixel(config.getScaleDenominator()) * config.getLengthPerPixel();
-//        ProjCoordinate p = CoordinateTransform.wgs84ToWebMercator(originY, originX);
-//        Point origin = new Point((float) p.x, (float) p.y).transform(config.getOriginX(), config.getOriginY(), scaled);
-//        va.changeData(ColorShaderProgram.toVertexData(origin, 1, 0, 0, 1));
-//        va.setDataFromVertexData();
-//        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, 1);
-
-//        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
-//        GLES20.glViewport(0, 0, config.getWidth(), config.getHeight());
-//        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-//        fullScreenQuad.draw(framebuffer.getTextureId());
+        float scaled = CoordinateTransform.getScalePixel(config.getScaleDenominator()) * config.getLengthPerPixel();
+        ProjCoordinate p = CoordinateTransform.wgs84ToWebMercator(curLat, curLon);
+        Point userLocation = new Point((float) p.x, (float) p.y).transform(config.getOriginX(), config.getOriginY(), scaled);
+        userIcon.relocate(userLocation);
+        userIcon.draw();
     }
 }

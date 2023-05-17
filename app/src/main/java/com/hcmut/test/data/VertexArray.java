@@ -29,7 +29,7 @@ public class VertexArray {
     private final int vertexCount;
     private int id = -1;
 
-    private void genBuffer(float[] vertexData) {
+    private void genBuffer(float[] vertexData, int drawType) {
         if (id != -1) {
             GLES20.glDeleteBuffers(1, new int[]{id}, 0);
         }
@@ -42,16 +42,20 @@ public class VertexArray {
         int[] vbo = new int[1];
         GLES20.glGenBuffers(1, vbo, 0);
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo[0]);
-        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, floatBuffer.capacity() * BYTES_PER_FLOAT, floatBuffer, GLES20.GL_STATIC_DRAW);
+        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, floatBuffer.capacity() * BYTES_PER_FLOAT, floatBuffer, drawType);
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
         id = vbo[0];
 //        Log.d("VertexArray", "genBuffer: " + id);
     }
 
-    public VertexArray(ShaderProgram shaderProgram, float[] vertexData) {
+    public VertexArray(ShaderProgram shaderProgram, float[] vertexData, int drawType) {
         this.shaderProgram = shaderProgram;
         this.vertexCount = vertexData.length / shaderProgram.getTotalVertexAttribCount();
-        genBuffer(vertexData);
+        genBuffer(vertexData, drawType);
+    }
+
+    public VertexArray(ShaderProgram shaderProgram, float[] vertexData) {
+        this(shaderProgram, vertexData, GLES20.GL_STATIC_DRAW);
     }
 
     public void changeData(float[] vertexData) {

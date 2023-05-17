@@ -9,17 +9,22 @@ public class LayerRequest {
         public final float minLat;
         public final float maxLat;
 
-        public Bound(float minLon, float maxLon, float minLat, float maxLat) {
+        public Bound(float minLon, float minLat, float maxLon, float maxLat) {
             this.minLon = minLon;
             this.maxLon = maxLon;
             this.minLat = minLat;
             this.maxLat = maxLat;
         }
     }
+
     public final Bound bound;
 
-    public LayerRequest(float minLon, float maxLon, float minLat, float maxLat) {
-        this.bound = new Bound(minLon, maxLon, minLat, maxLat);
+    public LayerRequest(float minLon, float minLat, float maxLon, float maxLat) {
+        this.bound = new Bound(minLon, minLat, maxLon, maxLat);
+    }
+
+    public LayerRequest(float[] bound) {
+        this(bound[0], bound[1], bound[2], bound[3]);
     }
 
     public void post(Callback<BaseResponse<LayerResponse>> callback) {

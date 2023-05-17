@@ -13,7 +13,7 @@ public abstract class SymMeta {
     public abstract void save(Config config);
     public abstract void draw();
 
-    protected static float[] appendTriangleStrip(float[] oldData, float[] newData, int totalVertexAttribCount) {
+    public static float[] appendTriangleStrip(float[] oldData, float[] newData, int totalVertexAttribCount) {
         if (oldData == null || oldData.length == 0) return newData;
         if (newData == null || newData.length == 0) return oldData;
 
@@ -29,14 +29,14 @@ public abstract class SymMeta {
         return result;
     }
 
-    protected static float[] appendRegular(float[] oldDrawable, float[] newDrawable) {
+    public static float[] appendRegular(float[] oldDrawable, float[] newDrawable) {
         float[] result = new float[oldDrawable.length + newDrawable.length];
         System.arraycopy(oldDrawable, 0, result, 0, oldDrawable.length);
         System.arraycopy(newDrawable, 0, result, oldDrawable.length, newDrawable.length);
         return result;
     }
 
-    protected static float[] appendRegular(List<float[]> drawables) {
+    public static float[] appendRegular(List<float[]> drawables) {
         int totalSize = drawables.stream().mapToInt(drawable -> drawable.length).sum();
         float[] result = new float[totalSize];
         int offset = 0;
@@ -47,7 +47,7 @@ public abstract class SymMeta {
         return result;
     }
 
-    protected static float[] appendTriangleStrip(List<float[]> drawables, int totalVertexAttribCount) {
+    public static float[] appendTriangleStrip(List<float[]> drawables, int totalVertexAttribCount) {
         int totalSize = drawables.stream().mapToInt(drawable -> drawable.length).sum();
         if (totalSize == 0) return new float[0];
         float[] result = new float[totalSize + (drawables.size() - 1) * totalVertexAttribCount * 2];
