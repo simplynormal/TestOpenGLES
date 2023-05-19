@@ -1,7 +1,7 @@
 package com.hcmut.test.algorithm;
 
 public class TileSystem {
-    public static final int ZOOM = 17;
+    public static final int ZOOM = 16;
     private static final long TWO_POWER_ZOOM = 1L << ZOOM;
 
     public static long getTileId(float lon, float lat, int offsetX, int offsetY) {

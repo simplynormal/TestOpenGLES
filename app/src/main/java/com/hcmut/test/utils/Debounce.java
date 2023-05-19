@@ -1,29 +1,27 @@
 package com.hcmut.test.utils;
 
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class Debounce {
-    private Timer debounceTimer;
-    private long delayMillis;
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    private Future<?> futureTask = null;
 
-    public Debounce(long delayMillis) {
-        this.delayMillis = delayMillis;
-        debounceTimer = new Timer();
+    private final long delay;
+
+    public Debounce(long delay) {
+        this.delay = delay;
     }
 
-    public void debounce(final Runnable function) {
-        try {
-            debounceTimer.cancel();
-        } catch (Exception e) {
-            e.printStackTrace();
+    public void debounce(final Runnable runnable) {
+        // If a task is already scheduled, cancel it
+        if (futureTask != null && !futureTask.isDone()) {
+            futureTask.cancel(true);
         }
-        debounceTimer = new Timer(); // Create a new Timer instance
-        debounceTimer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                function.run();
-            }
-        }, delayMillis);
+
+        // Schedule the new task
+        futureTask = scheduler.schedule(runnable, delay, TimeUnit.MILLISECONDS);
     }
 }

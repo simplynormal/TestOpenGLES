@@ -26,10 +26,14 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import retrofit2.Call;
@@ -55,10 +59,8 @@ public class MapView {
     private List<Layer> layersOrder;
     private final Config config;
     private final Nav nav;
-    private float curLon = -1;
-    private float curLat = -1;
     private HashSet<Long> curWayIds = new HashSet<>(0);
-    private Debounce debounce = new Debounce(1000);
+    private final Debounce debounce = new Debounce(100);
 
     public MapView(Config config) {
         this.config = config;
@@ -73,28 +75,27 @@ public class MapView {
     }
 
     public void setCurLocation(float lon, float lat, float radius) {
-        curLon = lon;
-        curLat = lat;
-        Point curPoint = new Point(lon, lat);
-        long tileId = TileSystem.getTileId(lon, lat);
-        HashSet<Long> possibleTiles = new HashSet<>(9);
+        debounce.debounce(() -> {
+            Point curPoint = new Point(lon, lat);
+            long tileId = TileSystem.getTileId(lon, lat);
+            HashSet<Long> possibleTiles = new HashSet<>(9);
 
-        for (int[] offset : OFFSETS) {
-            long id = TileSystem.getTileId(tileId, offset[0], offset[1]);
-            float[] bbox = TileSystem.getBoundBox(id);
-            Point bboxMin = new Point(bbox[0], bbox[1]);
-            Point bboxMax = new Point(bbox[2], bbox[3]);
-            Point bboxCenter = bboxMin.midPoint(bboxMax);
-            float bboxRadius = bboxCenter.distance(bboxMax);
+            for (int[] offset : OFFSETS) {
+                long id = TileSystem.getTileId(tileId, offset[0], offset[1]);
+                float[] bbox = TileSystem.getBoundBox(id);
+                Point bboxMin = new Point(bbox[0], bbox[1]);
+                Point bboxMax = new Point(bbox[2], bbox[3]);
+                Point bboxCenter = bboxMin.midPoint(bboxMax);
+                float bboxRadius = bboxCenter.distance(bboxMax);
 
-            if (curPoint.distance(bboxCenter) < radius * 1.5 + bboxRadius) {
-                possibleTiles.add(id);
+                if (curPoint.distance(bboxCenter) < radius * 1.5 + bboxRadius) {
+                    possibleTiles.add(id);
+                }
             }
-        }
-        Log.d(TAG, "possibleTiles: " + possibleTiles);
 
 
-        debounce.debounce(() -> request(possibleTiles));
+            request(possibleTiles);
+        });
     }
 
     void request(HashSet<Long> possibleTiles) {
@@ -111,19 +112,28 @@ public class MapView {
             return;
         }
 
+        List<Long> missingTiles = requestLocal(diff);
+        CompletableFuture<?> fromAPI = requestAPI(missingTiles);
 
-        CountDownLatch latch = new CountDownLatch(diff.size());
 
-        List<Long> missingTiles = requestLocal(latch, diff);
-        requestAPI(latch, missingTiles);
-
+        HashSet<Long> removeTiles = new HashSet<>(curWayIds);
+        removeTiles.removeAll(possibleTiles);
         curWayIds = possibleTiles;
 
-//        HashSet<Long> removeTiles = new HashSet<>(curWayIds);
-//        removeTiles.removeAll(possibleTiles);
+
+        fromAPI.thenRun(() -> {
+            Log.d(TAG, "possibleTiles: " + possibleTiles);
+            Log.d(TAG, "removeTiles: " + removeTiles);
+            for (Layer layer : layersOrder) {
+                THREAD_POOL_EXECUTOR.execute(() -> {
+                    layer.removeWays(removeTiles);
+                    layer.save();
+                });
+            }
+        });
     }
 
-    private List<Long> requestLocal(CountDownLatch latch, HashSet<Long> tiles) {
+    private List<Long> requestLocal(HashSet<Long> tiles) {
         DbDao dbDao = config.dbDao;
         List<Long> localTiles = dbDao.getAllTileIds(new ArrayList<>(tiles));
         if (localTiles.size() == 0) {
@@ -146,7 +156,8 @@ public class MapView {
             }
         }
 
-        CountDownLatch localLatch = new CountDownLatch(waysInLayerInTiles.size());
+        List<Future<?>> futures = new ArrayList<>(waysInLayerInTiles.size());
+
         for (String layerName : waysInLayerInTiles.keySet()) {
             Layer curLayer = layersMap.get(layerName);
             HashMap<Long, List<Way>> waysInTiles = waysInLayerInTiles.get(layerName);
@@ -154,7 +165,7 @@ public class MapView {
                 Log.e(TAG, "layer not found: " + layerName + " or waysInTiles == null");
                 continue;
             }
-            THREAD_POOL_EXECUTOR.execute(() -> {
+            Future<?> curFuture = THREAD_POOL_EXECUTOR.submit(() -> {
                 for (long tileId : waysInTiles.keySet()) {
                     List<Way> ways = waysInTiles.get(tileId);
                     if (ways == null) {
@@ -163,38 +174,42 @@ public class MapView {
                     }
                     curLayer.addWays(ways, tileId);
                 }
-                localLatch.countDown();
             });
+            futures.add(curFuture);
         }
 
-        THREAD_POOL_EXECUTOR.execute(() -> {
+        for (Future<?> future : futures) {
             try {
-                localLatch.await();
-            } catch (InterruptedException e) {
+                future.get();
+            } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
             }
-            for (int i = 0; i < localTiles.size(); i++) {
-                latch.countDown();
+        }
+
+        for (String layerName : waysInLayerInTiles.keySet()) {
+            Layer curLayer = layersMap.get(layerName);
+            if (curLayer == null) {
+                Log.e(TAG, "layer not found: " + layerName);
+                continue;
             }
-        });
+            curLayer.save();
+        }
+
 
         return missingTiles;
     }
 
-    private void requestAPI(CountDownLatch latch, List<Long> missingTiles) {
-        List<CountDownLatch> latches = new ArrayList<>(missingTiles.size()) {{
-            for (int i = 0; i < missingTiles.size(); i++) {
-                add(new CountDownLatch(1));
-            }
-        }};
+    private CompletableFuture<?> requestAPI(List<Long> missingTiles) {
+        List<CompletableFuture<?>> futures = new ArrayList<>(missingTiles.size());
+        CompletableFuture<?> rv = new CompletableFuture<>();
+        AtomicInteger counter = new AtomicInteger(missingTiles.size());
 
         for (int i = 0; i < missingTiles.size(); i++) {
             long tileId = missingTiles.get(i);
-            CountDownLatch curLatch = latches.get(i);
-            CountDownLatch prevLatch = i == 0 ? null : latches.get(i - 1);
 
             float[] bbox = TileSystem.getBoundBox(tileId);
             LayerRequest layerRequest = new LayerRequest(bbox);
+            int finalI = i;
             layerRequest.post(new Callback<>() {
                 @Override
                 public void onResponse(@NonNull Call<BaseResponse<LayerResponse>> call, @NonNull Response<BaseResponse<LayerResponse>> response) {
@@ -202,44 +217,44 @@ public class MapView {
                         Log.e(TAG, "response.body() == null");
                         return;
                     }
+
+                    CompletableFuture<?> prevFuture = futures.size() > 0 ? futures.get(futures.size() - 1) : null;
+                    CompletableFuture<?> curFuture = new CompletableFuture<>();
+                    futures.add(curFuture);
+
                     LayerResponse layerResponse = response.body().getData();
-                    Log.d(TAG, "layerResponse = " + layerResponse);
+//                    Log.d(TAG, "layerResponse = " + layerResponse + " prevFuture = " + (prevFuture == null ? null : prevFuture.isDone()) + " at index = " + finalI);
 
                     THREAD_POOL_EXECUTOR.execute(() -> {
                         try {
-                            if (prevLatch != null) prevLatch.await();
-                        } catch (InterruptedException e) {
+                            if (prevFuture != null) prevFuture.get();
+                        } catch (InterruptedException | ExecutionException e) {
                             e.printStackTrace();
                         }
-
-                        Log.d(TAG, "validating layerResponse: " + tileId);
-
-                        validateResponse(curLatch, layerResponse, tileId);
+//                        Log.d(TAG, "validating layerResponse: " + tileId);
+                        validateResponse(curFuture, layerResponse, tileId);
+                        try {
+                            curFuture.get();
+                        } catch (InterruptedException | ExecutionException e) {
+                            e.printStackTrace();
+                        }
+                        if (counter.decrementAndGet() == 0) {
+                            rv.complete(null);
+                        }
                     });
                 }
 
                 @Override
                 public void onFailure(@NonNull Call<BaseResponse<LayerResponse>> call, @NonNull Throwable t) {
                     Log.e(TAG, "onFailure: " + t.getMessage());
-                    curLatch.countDown();
                 }
             });
         }
 
-        THREAD_POOL_EXECUTOR.execute(() -> {
-            try {
-                latches.get(latches.size() - 1).await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            Log.d(TAG, "latch = " + latch.getCount());
-            for (int i = 0; i < missingTiles.size(); i++) {
-                latch.countDown();
-            }
-        });
+        return rv;
     }
 
-    public void validateResponse(CountDownLatch latch, LayerResponse layer, long tileId) {
+    public void validateResponse(CompletableFuture<?> completableFuture, LayerResponse layer, long tileId) {
         NodeResponse[] nodeResponses = layer.nodes;
         WayResponse[] wayResponses = layer.ways;
 
@@ -275,9 +290,8 @@ public class MapView {
             }
         }
 
-        CountDownLatch localLatch = new CountDownLatch(waysInLayer.size());
+        List<Future<?>> futures = new ArrayList<>(waysInLayer.size());
 
-        Log.d(TAG, "validateResponse: waysInLayer.size() = " + waysInLayer.size() + ", tileId = " + tileId);
         for (String layerName : waysInLayer.keySet()) {
             Layer curLayer = layersMap.get(layerName);
             List<Way> ways = waysInLayer.get(layerName);
@@ -286,25 +300,31 @@ public class MapView {
                 continue;
             }
 
-            THREAD_POOL_EXECUTOR.execute(() -> {
-                curLayer.addWays(ways, tileId);
-                localLatch.countDown();
-            });
+            Future<?> curFuture = THREAD_POOL_EXECUTOR.submit(() -> curLayer.addWays(ways, tileId));
 
-            Log.d(TAG, layerName + ", ways.size() = " + ways.size() + ", queueSize = " + THREAD_POOL_EXECUTOR.getQueue().size() + ", maxQueueSize = " + THREAD_POOL_EXECUTOR.getQueue().remainingCapacity());
+            futures.add(curFuture);
         }
 
         THREAD_POOL_EXECUTOR.execute(() -> {
-            try {
-                localLatch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+//            Log.d(TAG, "waiting for futures.size() = " + futures.size() + ", tileId = " + tileId);
+            for (Future<?> future : futures) {
+                try {
+                    future.get();
+                } catch (InterruptedException | ExecutionException e) {
+                    e.printStackTrace();
+                }
             }
-            for (Layer curLayer : layersOrder) {
+
+//            Log.d(TAG, "saving tileId = " + tileId);
+            for (String layerName : waysInLayer.keySet()) {
+                Layer curLayer = layersMap.get(layerName);
+                if (curLayer == null) {
+                    Log.e(TAG, "layer not found: " + layerName);
+                    continue;
+                }
                 curLayer.save();
             }
-            latch.countDown();
-            Log.d(TAG, "validateResponse: localLatch.await() done from " + tileId + ", latch = " + latch.getCount());
+            completableFuture.complete(null);
         });
     }
 

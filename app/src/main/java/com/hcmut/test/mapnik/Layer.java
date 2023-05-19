@@ -16,6 +16,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 @SuppressLint("NewApi")
 public class Layer {
@@ -24,6 +31,12 @@ public class Layer {
     private final List<String> stylesNames = new ArrayList<>();
     private final List<Style> styles = new ArrayList<>();
     private boolean hasText = false;
+    private final ReentrantLock saveLock = new ReentrantLock();
+    private final Condition allModified = saveLock.newCondition();
+    private boolean isSaving = false;
+    private final Condition saveFinished = saveLock.newCondition();
+
+    private final AtomicInteger modifyCounter = new AtomicInteger(0);
 
     private static class SymMetasWithWay {
         public final int order;
@@ -91,32 +104,106 @@ public class Layer {
     }
 
     public void addWays(List<Way> ways, long tileId) {
-        Log.d("Layer", "adding " + tileId + ", layer " + name);
+        if (ways.isEmpty()) {
+            return;
+        }
+
+        saveLock.lock();
+        try {
+            if (isSaving) {
+                while (isSaving) {
+                    saveFinished.await();
+                }
+            }
+        } catch (InterruptedException e) {
+            Log.e("Layer", "removeWays: ", e);
+        } finally {
+            saveLock.unlock();
+        }
+
+        modifyCounter.incrementAndGet();
         for (Way way : ways) {
             addWay(way, tileId);
         }
-        Log.d("Layer", "added " + tileId + ", layer " + name);
+        if (modifyCounter.decrementAndGet() == 0) {
+            saveLock.lock();
+            try {
+                allModified.signalAll();
+            } finally {
+                saveLock.unlock();
+            }
+        }
     }
 
     public void removeWays(Set<Long> tileIds) {
+        if (tileIds.isEmpty() || symMetasMap.isEmpty()) {
+            return;
+        }
+
+        saveLock.lock();
+        try {
+            if (isSaving) {
+                while (isSaving) {
+                    saveFinished.await();
+                }
+            }
+        } catch (InterruptedException e) {
+            Log.e("Layer", "removeWays: ", e);
+        } finally {
+            saveLock.unlock();
+        }
+
+        modifyCounter.incrementAndGet();
+        List<SymMetasWithWay> removed = new ArrayList<>(addedWays.size());
         for (SymMetasWithWay symMetasWithWay : addedWays.values()) {
             if (symMetasWithWay != null) {
                 symMetasWithWay.tileIds.removeAll(tileIds);
                 if (symMetasWithWay.tileIds.isEmpty()) {
-                    symMetasMap.remove(symMetasWithWay.order);
+                    removed.add(symMetasWithWay);
                 }
+            }
+        }
+
+        for (SymMetasWithWay symMetasWithWay : removed) {
+            if (symMetasWithWay != null) {
+                symMetasMap.remove(symMetasWithWay.order);
+                addedWays.remove(symMetasWithWay.way.id);
+            }
+        }
+
+        if (modifyCounter.decrementAndGet() == 0) {
+            saveLock.lock();
+            try {
+                allModified.signalAll();
+            } finally {
+                saveLock.unlock();
             }
         }
     }
 
     public void save() {
-        Log.d("Layer", "saving " + name);
-        drawingSymMetasMap = Collections.synchronizedMap(new TreeMap<>(symMetasMap));
-        Log.d("Layer", "saved " + name);
+        saveLock.lock();
+        try {
+            while (modifyCounter.get() > 0) {
+                allModified.await();
+            }
+            isSaving = true;
+//            if (drawingSymMetasMap != null && drawingSymMetasMap.size() > 0 && drawingSymMetasMap.size() != symMetasMap.size()) {
+//                Log.d("Layer ", "Saved size " + drawingSymMetasMap.size() + " -> " + symMetasMap.size());
+//            }
+            drawingSymMetasMap = Collections.synchronizedMap(new TreeMap<>(symMetasMap));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally {
+            isSaving = false;
+            saveFinished.signalAll();
+            saveLock.unlock();
+        }
     }
 
     public void draw() {
         if (drawingSymMetasMap == null) return;
+        Map<Integer, SymMetasWithWay> drawingSymMetasMap = this.drawingSymMetasMap;
         for (int i = 0; i < styles.size(); i++) {
             for (int key : drawingSymMetasMap.keySet()) {
                 SymMetasWithWay symMetasWithWay = drawingSymMetasMap.get(key);

@@ -22,6 +22,7 @@ public class UserIcon {
     private static final int NUM_OF_ARROW_VERTICES = 3;
     private final Config config;
     VertexArray vertexArray = null;
+    private float[] drawable;
 
     public void relocate(Point center) {
         List<Point> points = new ArrayList<>(NUM_OF_VERTICES + 2);
@@ -50,7 +51,7 @@ public class UserIcon {
         drawable = SymMeta.appendRegular(drawable, TextSymbShaderProgram.toPointVertexData(arrowPoints, 10, center, center, ARROW_COLOR));
 
         if (vertexArray == null) {
-            vertexArray = new VertexArray(config.getTextSymbShaderProgram(), drawable, GLES20.GL_DYNAMIC_DRAW);
+            this.drawable = drawable;
         } else {
             vertexArray.changeData(drawable);
         }
@@ -62,7 +63,9 @@ public class UserIcon {
     }
 
     public void draw() {
-        if (vertexArray == null) return;
+        if (vertexArray == null) {
+            vertexArray = new VertexArray(config.getTextSymbShaderProgram(), drawable, GLES20.GL_DYNAMIC_DRAW);
+        }
         vertexArray.setDataFromVertexData();
         int pointCount = vertexArray.getVertexCount() - NUM_OF_ARROW_VERTICES;
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, pointCount / 2, pointCount / 2);

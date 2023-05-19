@@ -78,6 +78,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     private float curLon = 0;
     private float curLat = 0;
     private UserIcon userIcon;
+    private boolean userLocationChanged = false;
 
     public TestRenderer(Context context) {
         config = new Config(context);
@@ -131,6 +132,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         Point origin = new Point((float) p.x, (float) p.y).transform(config.getOriginX(), config.getOriginY(), scaled);
         Log.d(TAG, "initOpenGL: origin: " + origin);
         userIcon = new UserIcon(config, origin);
+        userLocationChanged = true;
     }
 
     void read() {
@@ -202,6 +204,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         Log.d(TAG, "transformOrigin: " + curLon + ", " + curLat);
 
 //        userIcon.relocate(new Point(user.x, user.y));
+        userLocationChanged = true;
         mapView.setCurLocation(curLon, curLat, radius);
     }
 
@@ -377,10 +380,12 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_STENCIL_BUFFER_BIT);
 
         mapView.draw();
-        float scaled = CoordinateTransform.getScalePixel(config.getScaleDenominator()) * config.getLengthPerPixel();
-        ProjCoordinate p = CoordinateTransform.wgs84ToWebMercator(curLat, curLon);
-        Point userLocation = new Point((float) p.x, (float) p.y).transform(config.getOriginX(), config.getOriginY(), scaled);
-        userIcon.relocate(userLocation);
+        if (userLocationChanged) {
+            float scaled = CoordinateTransform.getScalePixel(config.getScaleDenominator()) * config.getLengthPerPixel();
+            ProjCoordinate p = CoordinateTransform.wgs84ToWebMercator(curLat, curLon);
+            Point userLocation = new Point((float) p.x, (float) p.y).transform(config.getOriginX(), config.getOriginY(), scaled);
+            userIcon.relocate(userLocation);
+        }
         userIcon.draw();
     }
 }

@@ -10,6 +10,7 @@ import com.hcmut.test.geometry.Polygon;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class Way {
     public final long id;
@@ -20,6 +21,8 @@ public class Way {
     private boolean alreadyDrawnTextPointMap = false;
     private BoundBox boundBox = null;
     private boolean bboxTransformed = false;
+    private final ReentrantLock polygonLock = new ReentrantLock();
+    private final ReentrantLock listLock = new ReentrantLock();
     public Way() {
         nodes = new ArrayList<>();
         tags = new HashMap<>();
@@ -99,6 +102,7 @@ public class Way {
     }
 
     public PointList toPointList(float originX, float originY, float scale) {
+        listLock.lock();
         if (pointList == null) {
             List<Point> points = new ArrayList<>();
             for (Node node : nodes) {
@@ -107,10 +111,12 @@ public class Way {
             pointList = new PointList(points);
             transformBoundingBox(originX, originY, scale);
         }
+        listLock.unlock();
         return pointList;
     }
 
     public Polygon toPolygon(float originX, float originY, float scale) {
+        polygonLock.lock();
         if (polygon == null) {
             List<Point> points = new ArrayList<>();
             for (Node node : nodes) {
@@ -119,6 +125,7 @@ public class Way {
             polygon = new Polygon(points);
             transformBoundingBox(originX, originY, scale);
         }
+        polygonLock.unlock();
         return polygon;
     }
 
