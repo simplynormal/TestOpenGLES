@@ -24,8 +24,12 @@ public class Polygon extends PointList {
         checkInit();
     }
 
-    public Polygon(PointList pointList) {
-        this(pointList.points);
+    public Polygon(Polygon polygon) {
+        this(polygon.points);
+        triangulatedTriangles = new ArrayList<>(polygon.triangulatedTriangles);
+        for (Polygon hole : polygon.holes) {
+            holes.add(new Polygon(hole));
+        }
     }
 
     public Polygon(Way way) {

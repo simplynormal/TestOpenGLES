@@ -21,8 +21,7 @@ public class Way {
     private boolean alreadyDrawnTextPointMap = false;
     private BoundBox boundBox = null;
     private boolean bboxTransformed = false;
-    private final ReentrantLock polygonLock = new ReentrantLock();
-    private final ReentrantLock listLock = new ReentrantLock();
+    private final ReentrantLock lock = new ReentrantLock();
     public Way() {
         nodes = new ArrayList<>();
         tags = new HashMap<>();
@@ -102,7 +101,7 @@ public class Way {
     }
 
     public PointList toPointList(float originX, float originY, float scale) {
-        listLock.lock();
+        lock.lock();
         if (pointList == null) {
             List<Point> points = new ArrayList<>();
             for (Node node : nodes) {
@@ -111,12 +110,13 @@ public class Way {
             pointList = new PointList(points);
             transformBoundingBox(originX, originY, scale);
         }
-        listLock.unlock();
-        return pointList;
+        PointList rv = new PointList(pointList);
+        lock.unlock();
+        return rv;
     }
 
     public Polygon toPolygon(float originX, float originY, float scale) {
-        polygonLock.lock();
+        lock.lock();
         if (polygon == null) {
             List<Point> points = new ArrayList<>();
             for (Node node : nodes) {
@@ -125,8 +125,9 @@ public class Way {
             polygon = new Polygon(points);
             transformBoundingBox(originX, originY, scale);
         }
-        polygonLock.unlock();
-        return polygon;
+        Polygon rv = new Polygon(polygon);
+        lock.unlock();
+        return rv;
     }
 
     public BoundBox getBoundBox() {

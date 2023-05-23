@@ -1,6 +1,7 @@
 package com.hcmut.test.local;
 
 import androidx.room.Entity;
+import androidx.room.Ignore;
 import androidx.room.PrimaryKey;
 
 import com.google.gson.Gson;
@@ -42,6 +43,7 @@ public class WayEntity {
     public WayEntity() {
     }
 
+    @Ignore
     public WayEntity(long id, List<Node> nodes, HashMap<String, HashMap<String, String>> tags) {
         this.id = id;
         this.nodes = gson.toJson(new NodesGson(nodes));

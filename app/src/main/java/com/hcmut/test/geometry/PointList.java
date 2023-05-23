@@ -10,6 +10,10 @@ public class PointList {
         this.points = new ArrayList<>(points);
     }
 
+    public PointList(PointList pointList) {
+        this(pointList.points);
+    }
+
     public boolean isClosed() {
         return points.size() > 0 && points.get(0).equals(points.get(points.size() - 1));
     }

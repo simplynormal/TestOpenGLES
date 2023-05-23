@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.pm.ConfigurationInfo;
 import android.opengl.GLSurfaceView;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.Window;
 
@@ -16,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends Activity {
+    private static final String TAG = "MainActivity";
 
     /**
      * Hold a reference to our mGLSurfaceView
@@ -75,7 +77,7 @@ public class MainActivity extends Activity {
                 final float eventY = event.getY();
                 final int eventType = event.getActionMasked();
                 final int eventPointerCount = event.getPointerCount();
-                System.out.println("Action: " + actionToString(eventType));
+                Log.d(TAG, "Action: " + actionToString(eventType));
                 if (eventPointerCount > 1) {
                     List<Float> eventXs = new ArrayList<>();
                     List<Float> eventYs = new ArrayList<>();

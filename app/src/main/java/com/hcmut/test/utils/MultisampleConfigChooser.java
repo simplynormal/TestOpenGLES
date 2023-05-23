@@ -1,6 +1,7 @@
 package com.hcmut.test.utils;
 
 import android.opengl.GLSurfaceView;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 
@@ -11,10 +12,9 @@ import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.egl.EGLDisplay;
 
 public class MultisampleConfigChooser implements GLSurfaceView.EGLConfigChooser {
-
+    private static final String TAG = MultisampleConfigChooser.class.getSimpleName();
     private static final int EGL_COVERAGE_BUFFERS_NV = 0x30E0;
     private static final int EGL_COVERAGE_SAMPLES_NV = 0x30E1;
-
     private static final int RED = 8;
     private static final int GREEN = 8;
     private static final int BLUE = 8;
@@ -43,7 +43,7 @@ public class MultisampleConfigChooser implements GLSurfaceView.EGLConfigChooser 
                 EGL10.EGL_SAMPLES, 4,
                 EGL10.EGL_NONE).tryConfig(gl, display);
         if (config != null) {
-            System.out.println("Using normal multisampling");
+            Log.d(TAG, "Using normal multisampling");
             return config;
         }
 
@@ -61,7 +61,7 @@ public class MultisampleConfigChooser implements GLSurfaceView.EGLConfigChooser 
                 EGL_COVERAGE_SAMPLES_NV, 2,  // always 5 in practice on tegra 2
                 EGL10.EGL_NONE).tryConfig(gl, display);
         if (config != null) {
-            System.out.println("Using coverage multisampling");
+            Log.d(TAG, "Using coverage multisampling");
             return config;
         }
 
@@ -75,7 +75,7 @@ public class MultisampleConfigChooser implements GLSurfaceView.EGLConfigChooser 
                 EGL10.EGL_DEPTH_SIZE, DEPTH,
                 EGL10.EGL_NONE).tryConfig(gl, display);
         if (config != null) {
-            System.out.println("Using no multisampling");
+            Log.d(TAG, "Using no multisampling");
             return config;
         }
 

@@ -1,5 +1,7 @@
 package com.hcmut.test.local;
 
+import android.util.Log;
+
 import androidx.room.Dao;
 import androidx.room.Insert;
 import androidx.room.OnConflictStrategy;
@@ -29,10 +31,27 @@ public interface DbDao {
 
     @Transaction
     default void insertWaysAndTile(List<WayEntity> wayEntities, TileEntity tileId) {
+        Log.d("DbDao", "insertWaysAndTile: " + wayEntities.size() + " " + tileId.id);
         insertWays(wayEntities);
         insertTile(tileId);
         for (WayEntity wayEntity : wayEntities) {
             insertWayTile(new WayTileEntity(wayEntity.id, tileId.id));
         }
+    }
+
+    @Query("DELETE FROM tileentity")
+    void clearTileEntity();
+
+    @Query("DELETE FROM wayentity")
+    void clearWayEntity();
+
+    @Query("DELETE FROM waytileentity")
+    void clearWayTileEntity();
+
+    @Transaction
+    default void clearAll() {
+        clearWayTileEntity();
+        clearTileEntity();
+        clearWayEntity();
     }
 }

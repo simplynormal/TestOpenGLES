@@ -5,7 +5,6 @@ import android.content.Context;
 
 import androidx.room.Room;
 
-import com.hcmut.test.BuildConfig;
 import com.hcmut.test.algorithm.CoordinateTransform;
 import com.hcmut.test.geometry.BoundBox;
 import com.hcmut.test.geometry.Vector;
@@ -13,8 +12,6 @@ import com.hcmut.test.local.AppDatabase;
 import com.hcmut.test.local.DbDao;
 import com.hcmut.test.osm.Node;
 import com.hcmut.test.programs.ColorShaderProgram;
-import com.hcmut.test.programs.FrameShaderProgram;
-import com.hcmut.test.programs.TextShaderProgram;
 import com.hcmut.test.programs.TextSymbShaderProgram;
 
 import org.osgeo.proj4j.ProjCoordinate;
@@ -31,9 +28,7 @@ import java.lang.Runnable;
 public class Config {
     private final List<BiConsumer<Config, Set<Property>>> listeners = new ArrayList<>();
     private ColorShaderProgram colorShaderProgram;
-    private TextShaderProgram textShaderProgram;
     private TextSymbShaderProgram textSymbShaderProgram;
-    private FrameShaderProgram frameShaderProgram;
     public final Context context;
     public final DbDao dbDao;
     private int width;
@@ -45,7 +40,6 @@ public class Config {
     private float scale = 1;
     private float rotation = 0;
     private Vector translation = new Vector(0, 0);
-    private BoundBox worldBoundBox = new BoundBox(0, 0, 0, 0);
 
     public enum Property {
         WIDTH,
@@ -99,15 +93,6 @@ public class Config {
         return colorShaderProgram;
     }
 
-    public void setTextShaderProgram(TextShaderProgram textShaderProgram) {
-        this.textShaderProgram = textShaderProgram;
-    }
-
-    public TextShaderProgram getTextShaderProgram() {
-        return textShaderProgram;
-    }
-
-
     public void setTextSymbShaderProgram(TextSymbShaderProgram textSymbShaderProgram) {
         this.textSymbShaderProgram = textSymbShaderProgram;
     }
@@ -116,22 +101,14 @@ public class Config {
         return textSymbShaderProgram;
     }
 
-    public void setFrameShaderProgram(FrameShaderProgram frameShaderProgram) {
-        this.frameShaderProgram = frameShaderProgram;
-    }
-
-    public FrameShaderProgram getFrameShaderProgram() {
-        return frameShaderProgram;
-    }
-
     public void setWidthHeight(int width, int height) {
         this.width = width;
         this.height = height;
         if (width > 0 && height > 0) {
             if (width > height) {
-                this.lengthPerPixel = 6f / height / 0.95f;
+                this.lengthPerPixel = 8f / height / 0.95f;
             } else {
-                this.lengthPerPixel = 6f / width / 0.95f;
+                this.lengthPerPixel = 8f / width / 0.95f;
             }
         }
         notifyListeners(Set.of(Property.WIDTH, Property.HEIGHT, Property.PIXEL_PER_LENGTH));
@@ -192,10 +169,6 @@ public class Config {
         return translation;
     }
 
-    public BoundBox getWorldBoundBox() {
-        return worldBoundBox;
-    }
-
     public void setScale(float scale) {
         this.scale = scale;
         notifyListeners(Set.of(Property.SCALE));
@@ -216,9 +189,5 @@ public class Config {
         this.rotation = rotation;
         this.translation = translation;
         notifyListeners(Set.of(Property.SCALE, Property.ROTATION, Property.TRANSLATION));
-    }
-
-    public void setWorldBoundBox(BoundBox worldBoundBox) {
-        this.worldBoundBox = worldBoundBox;
     }
 }

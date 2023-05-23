@@ -71,11 +71,11 @@ public class VertexArray {
         if (error != GLES20.GL_NO_ERROR) {
             Log.e("VertexArray", "changeData: " + error);
         }
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
     }
 
     public void setVertexAttribPointer(int dataOffset, int attributeLocation,
                                        int componentCount, int strideInElements) {
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, id);
         glVertexAttribPointer(attributeLocation, componentCount, GL_FLOAT,
                 false, strideInElements * BYTES_PER_FLOAT, dataOffset * BYTES_PER_FLOAT);
         glEnableVertexAttribArray(attributeLocation);
@@ -83,6 +83,7 @@ public class VertexArray {
 
     public void setDataFromVertexData() {
         shaderProgram.useProgram();
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, id);
         List<ShaderProgram.VertexAttrib> attribs = shaderProgram.getVertexAttribs();
         int totalComponents = shaderProgram.getTotalVertexAttribCount();
         for (ShaderProgram.VertexAttrib attrib : attribs) {
@@ -93,6 +94,7 @@ public class VertexArray {
             }
             setVertexAttribPointer(attrib.offset, location, attrib.count, totalComponents);
         }
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
     }
 
     public int getVertexCount() {

@@ -5,21 +5,29 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import com.hcmut.test.BuildConfig;
+import com.hcmut.test.algorithm.CoordinateTransform;
 import com.hcmut.test.algorithm.TileSystem;
 import com.hcmut.test.geometry.BoundBox;
 import com.hcmut.test.geometry.Point;
 import com.hcmut.test.local.DbDao;
+import com.hcmut.test.local.TileEntity;
 import com.hcmut.test.local.WayEntity;
 import com.hcmut.test.mapnik.Layer;
 import com.hcmut.test.osm.Node;
 import com.hcmut.test.osm.Way;
+import com.hcmut.test.remote.APIService;
 import com.hcmut.test.remote.BaseResponse;
+import com.hcmut.test.remote.DirectResponse;
 import com.hcmut.test.remote.LayerRequest;
 import com.hcmut.test.remote.LayerResponse;
 import com.hcmut.test.remote.NodeResponse;
+import com.hcmut.test.remote.RetrofitClient;
 import com.hcmut.test.remote.WayResponse;
 import com.hcmut.test.utils.Config;
 import com.hcmut.test.utils.Debounce;
+
+import org.osgeo.proj4j.ProjCoordinate;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -34,6 +42,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import retrofit2.Call;
@@ -50,21 +59,23 @@ public class MapView {
             60L,
             TimeUnit.SECONDS,
             new LinkedBlockingQueue<>());
-    private static final int[][] OFFSETS = new int[][]{
-            {-1, -1}, {-1, 0}, {-1, 1},
-            {0, -1}, {0, 0}, {0, 1},
-            {1, -1}, {1, 0}, {1, 1}
-    };
+    private static final float USER_RADIUS_BUFFER = 1.5f;
+    private final ReentrantLock lock = new ReentrantLock();
     private final HashMap<String, Layer> layersMap = new HashMap<>(78);
     private List<Layer> layersOrder;
     private final Config config;
     private final Nav nav;
-    private HashSet<Long> curWayIds = new HashSet<>(0);
-    private final Debounce debounce = new Debounce(100);
+    private final UserIcon userIcon;
+    private float curLon = 0;
+    private float curLat = 0;
+    private HashSet<Long> curTileIds = new HashSet<>(0);
+    private final Debounce debounce = new Debounce(1000);
+    private boolean userLocationChanged = false;
 
     public MapView(Config config) {
         this.config = config;
         nav = new Nav(config);
+        userIcon = new UserIcon(config, new Point(0, 0));
     }
 
     public void setLayers(List<Layer> layers) {
@@ -74,106 +85,144 @@ public class MapView {
         }
     }
 
-    public void setCurLocation(float lon, float lat, float radius) {
-        debounce.debounce(() -> {
-            Point curPoint = new Point(lon, lat);
-            long tileId = TileSystem.getTileId(lon, lat);
-            HashSet<Long> possibleTiles = new HashSet<>(9);
+    private boolean isTileValid(long tileId, Point curPoint, float radius) {
+        float[] bbox = TileSystem.getBoundBox(tileId);
+        Point bboxMin = new Point(bbox[0], bbox[1]);
+        Point bboxMax = new Point(bbox[2], bbox[3]);
+        Point bboxCenter = bboxMin.midPoint(bboxMax);
+        float bboxRadius = bboxCenter.distance(bboxMax);
 
-            for (int[] offset : OFFSETS) {
-                long id = TileSystem.getTileId(tileId, offset[0], offset[1]);
-                float[] bbox = TileSystem.getBoundBox(id);
-                Point bboxMin = new Point(bbox[0], bbox[1]);
-                Point bboxMax = new Point(bbox[2], bbox[3]);
-                Point bboxCenter = bboxMin.midPoint(bboxMax);
-                float bboxRadius = bboxCenter.distance(bboxMax);
+        return curPoint.distance(bboxCenter) < radius * USER_RADIUS_BUFFER + bboxRadius;
+    }
 
-                if (curPoint.distance(bboxCenter) < radius * 1.5 + bboxRadius) {
-                    possibleTiles.add(id);
-                }
+    private HashSet<Long> getTileIds(float lon, float lat, float radius, int curLevel) {
+        assert curLevel >= 0;
+        long tileId = TileSystem.getTileId(lon, lat);
+        int n = 2 * curLevel + 1;
+        HashSet<Long> rv = new HashSet<>(n * n);
+        if (curLevel == 0) {
+            rv.add(tileId);
+            rv.addAll(getTileIds(lon, lat, radius, curLevel + 1));
+            return rv;
+        }
+
+        Point curPoint = new Point(lon, lat);
+        boolean atLeastOne = false;
+
+        int startCol = -curLevel;
+        int endCol = curLevel;
+        int startRow = -curLevel;
+        int endRow = curLevel;
+
+        for (int i = startCol; i <= endCol; i++) {
+            // Process the top and bottom row
+            long id = TileSystem.getTileId(tileId, i, startRow);
+            if (isTileValid(id, curPoint, radius)) {
+                rv.add(id);
+                atLeastOne = true;
             }
+            id = TileSystem.getTileId(tileId, i, endRow);
+            if (isTileValid(id, curPoint, radius)) {
+                rv.add(id);
+                atLeastOne = true;
+            }
+        }
+
+        for (int i = startRow + 1; i < endRow; i++) {
+            // Process the left and right column
+            long id = TileSystem.getTileId(tileId, startCol, i);
+            if (isTileValid(id, curPoint, radius)) {
+                rv.add(id);
+                atLeastOne = true;
+            }
+            id = TileSystem.getTileId(tileId, endCol, i);
+            if (isTileValid(id, curPoint, radius)) {
+                rv.add(id);
+                atLeastOne = true;
+            }
+        }
 
 
+//        Log.d(TAG, "curLevel: " + curLevel + ", rv.size(): " + rv.size());
+        if (atLeastOne) {
+            rv.addAll(getTileIds(lon, lat, radius, curLevel + 1));
+        }
+
+        return rv;
+    }
+
+    public void setCurLocation(float lon, float lat, float radius) {
+        if (curLon == 0 && BuildConfig.DEBUG) {
+            config.dbDao.clearAll();
+        }
+
+        userLocationChanged = true;
+        curLon = lon;
+        curLat = lat;
+        debounce.debounce(() -> {
+            HashSet<Long> possibleTiles = getTileIds(lon, lat, radius, 0);
+            Log.d(TAG, "radius: " + radius + ", possibleTiles.size(): " + possibleTiles.size());
             request(possibleTiles);
         });
     }
 
+    public void setRoute(double lon, double lat, double destLon, double destLat) {
+        APIService apiService = RetrofitClient.getApiService();
+        apiService.getFindDirect(lat, lon, destLat, destLon, "time").enqueue(new Callback<>() {
+            @Override
+            public void onResponse(@NonNull Call<BaseResponse<List<DirectResponse>>> call, @NonNull Response<BaseResponse<List<DirectResponse>>> response) {
+                if (response.isSuccessful()) {
+                    assert response.body() != null;
+                    List<DirectResponse> directResponses = response.body().getData();
+                    if (directResponses != null && directResponses.size() > 0) {
+                        DirectResponse directResponse = directResponses.get(0);
+                        THREAD_POOL_EXECUTOR.execute(() -> nav.setRoute(directResponse));
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<BaseResponse<List<DirectResponse>>> call, Throwable t) {
+                Log.e(TAG, "onFailure: ", t);
+            }
+        });
+
+    }
+
     void request(HashSet<Long> possibleTiles) {
+        lock.lock();
         if (possibleTiles == null || possibleTiles.size() == 0) {
             return;
         }
 
         HashSet<Long> diff = new HashSet<>(possibleTiles);
-        diff.removeAll(curWayIds);
+        diff.removeAll(curTileIds);
+        HashSet<Long> removeTiles = new HashSet<>(curTileIds);
+        removeTiles.removeAll(possibleTiles);
 
-        Log.d(TAG, "diff.size(): " + diff.size());
+        Log.d(TAG, "diff.size(): " + diff.size() + ", removeTiles.size(): " + removeTiles.size());
 
-        if (diff.size() == 0) {
-            return;
+        if (removeTiles.size() > 0) {
+            removeTiles(removeTiles);
         }
 
-        List<Long> missingTiles = requestLocal(diff);
-        CompletableFuture<?> fromAPI = requestAPI(missingTiles);
+        if (diff.size() > 0) {
+            List<Long> missingTiles = requestLocal(diff);
+            Log.d(TAG, "missingTiles.size(): " + missingTiles.size());
+            requestAPI(missingTiles);
+        }
 
-
-        HashSet<Long> removeTiles = new HashSet<>(curWayIds);
-        removeTiles.removeAll(possibleTiles);
-        curWayIds = possibleTiles;
-
-
-        fromAPI.thenRun(() -> {
-            Log.d(TAG, "possibleTiles: " + possibleTiles);
-            Log.d(TAG, "removeTiles: " + removeTiles);
-            for (Layer layer : layersOrder) {
-                THREAD_POOL_EXECUTOR.execute(() -> {
-                    layer.removeWays(removeTiles);
-                    layer.save();
-                });
-            }
-        });
+        curTileIds = possibleTiles;
+        Log.d(TAG, "curTileIds.size(): " + curTileIds.size());
+        lock.unlock();
     }
 
-    private List<Long> requestLocal(HashSet<Long> tiles) {
-        DbDao dbDao = config.dbDao;
-        List<Long> localTiles = dbDao.getAllTileIds(new ArrayList<>(tiles));
-        if (localTiles.size() == 0) {
-            return new ArrayList<>(tiles);
-        }
-
-        List<Long> missingTiles = new ArrayList<>(tiles.size() - localTiles.size());
-        HashMap<String, HashMap<Long, List<Way>>> waysInLayerInTiles = new HashMap<>(layersMap.size());
-
-        for (long tileId : localTiles) {
-            if (tiles.contains(tileId)) {
-                List<Way> ways = dbDao.getWaysByTileId(tileId).stream().map(WayEntity::toWay).collect(Collectors.toList());
-                ways.forEach((way) -> {
-                    for (String layerName : way.tags.keySet()) {
-                        waysInLayerInTiles.computeIfAbsent(layerName, k -> new HashMap<>(localTiles.size())).computeIfAbsent(tileId, k -> new ArrayList<>()).add(way);
-                    }
-                });
-            } else {
-                missingTiles.add(tileId);
-            }
-        }
-
-        List<Future<?>> futures = new ArrayList<>(waysInLayerInTiles.size());
-
-        for (String layerName : waysInLayerInTiles.keySet()) {
-            Layer curLayer = layersMap.get(layerName);
-            HashMap<Long, List<Way>> waysInTiles = waysInLayerInTiles.get(layerName);
-            if (curLayer == null || waysInTiles == null) {
-                Log.e(TAG, "layer not found: " + layerName + " or waysInTiles == null");
-                continue;
-            }
+    private void removeTiles(HashSet<Long> removeTiles) {
+        List<Future<?>> futures = new ArrayList<>(layersOrder.size());
+        for (Layer layer : layersOrder) {
             Future<?> curFuture = THREAD_POOL_EXECUTOR.submit(() -> {
-                for (long tileId : waysInTiles.keySet()) {
-                    List<Way> ways = waysInTiles.get(tileId);
-                    if (ways == null) {
-                        Log.e(TAG, "ways == null in " + layerName + " for tileId = " + tileId);
-                        continue;
-                    }
-                    curLayer.addWays(ways, tileId);
-                }
+                layer.removeWays(removeTiles);
+                layer.save();
             });
             futures.add(curFuture);
         }
@@ -181,12 +230,37 @@ public class MapView {
         for (Future<?> future : futures) {
             try {
                 future.get();
-            } catch (InterruptedException | ExecutionException e) {
+            } catch (ExecutionException | InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void renderLayers(HashMap<String, List<Way>> waysInLayer, long tileId) {
+        List<Future<?>> futures = new ArrayList<>(waysInLayer.size());
+
+        for (String layerName : waysInLayer.keySet()) {
+            Layer curLayer = layersMap.get(layerName);
+            List<Way> ways = waysInLayer.get(layerName);
+            if (curLayer == null || ways == null) {
+                Log.e(TAG, "layer not found: " + layerName);
+                continue;
+            }
+
+            Future<?> curFuture = THREAD_POOL_EXECUTOR.submit(() -> curLayer.addWays(ways, tileId));
+
+            futures.add(curFuture);
+        }
+
+        for (Future<?> future : futures) {
+            try {
+                future.get();
+            } catch (ExecutionException | InterruptedException e) {
                 e.printStackTrace();
             }
         }
 
-        for (String layerName : waysInLayerInTiles.keySet()) {
+        for (String layerName : waysInLayer.keySet()) {
             Layer curLayer = layersMap.get(layerName);
             if (curLayer == null) {
                 Log.e(TAG, "layer not found: " + layerName);
@@ -194,22 +268,48 @@ public class MapView {
             }
             curLayer.save();
         }
+    }
 
+    private List<Long> requestLocal(HashSet<Long> tiles) {
+        DbDao dbDao = config.dbDao;
+        HashSet<Long> localTiles = new HashSet<>(dbDao.getAllTileIds(new ArrayList<>(tiles)));
+        if (localTiles.size() == 0) {
+            return new ArrayList<>(tiles);
+        }
+
+        List<Long> missingTiles = new ArrayList<>(tiles.size() - localTiles.size());
+
+        for (long tileId : tiles) {
+            if (localTiles.contains(tileId)) {
+                List<WayEntity> wayEntities = dbDao.getWaysByTileId(tileId);
+                HashMap<String, List<Way>> waysInLayer = new HashMap<>(layersMap.size());
+                for (WayEntity wayEntity : wayEntities) {
+                    Way way = wayEntity.toWay();
+                    for (String layer : way.tags.keySet()) {
+                        waysInLayer.computeIfAbsent(layer, k -> new ArrayList<>()).add(way);
+                    }
+                }
+                renderLayers(waysInLayer, tileId);
+            } else {
+                missingTiles.add(tileId);
+            }
+        }
 
         return missingTiles;
     }
 
-    private CompletableFuture<?> requestAPI(List<Long> missingTiles) {
-        List<CompletableFuture<?>> futures = new ArrayList<>(missingTiles.size());
-        CompletableFuture<?> rv = new CompletableFuture<>();
-        AtomicInteger counter = new AtomicInteger(missingTiles.size());
+    private void requestAPI(List<Long> missingTiles) {
+        if (missingTiles.size() == 0) {
+            return;
+        }
 
+        CompletableFuture<?> await = new CompletableFuture<>();
+        AtomicInteger counter = new AtomicInteger(missingTiles.size());
         for (int i = 0; i < missingTiles.size(); i++) {
             long tileId = missingTiles.get(i);
 
             float[] bbox = TileSystem.getBoundBox(tileId);
             LayerRequest layerRequest = new LayerRequest(bbox);
-            int finalI = i;
             layerRequest.post(new Callback<>() {
                 @Override
                 public void onResponse(@NonNull Call<BaseResponse<LayerResponse>> call, @NonNull Response<BaseResponse<LayerResponse>> response) {
@@ -218,59 +318,49 @@ public class MapView {
                         return;
                     }
 
-                    CompletableFuture<?> prevFuture = futures.size() > 0 ? futures.get(futures.size() - 1) : null;
-                    CompletableFuture<?> curFuture = new CompletableFuture<>();
-                    futures.add(curFuture);
-
                     LayerResponse layerResponse = response.body().getData();
-//                    Log.d(TAG, "layerResponse = " + layerResponse + " prevFuture = " + (prevFuture == null ? null : prevFuture.isDone()) + " at index = " + finalI);
+                    validateResponse(layerResponse, tileId);
 
-                    THREAD_POOL_EXECUTOR.execute(() -> {
-                        try {
-                            if (prevFuture != null) prevFuture.get();
-                        } catch (InterruptedException | ExecutionException e) {
-                            e.printStackTrace();
-                        }
-//                        Log.d(TAG, "validating layerResponse: " + tileId);
-                        validateResponse(curFuture, layerResponse, tileId);
-                        try {
-                            curFuture.get();
-                        } catch (InterruptedException | ExecutionException e) {
-                            e.printStackTrace();
-                        }
-                        if (counter.decrementAndGet() == 0) {
-                            rv.complete(null);
-                        }
-                    });
+                    if (counter.decrementAndGet() == 0) {
+                        await.complete(null);
+                    }
                 }
 
                 @Override
                 public void onFailure(@NonNull Call<BaseResponse<LayerResponse>> call, @NonNull Throwable t) {
                     Log.e(TAG, "onFailure: " + t.getMessage());
+                    if (counter.decrementAndGet() == 0) {
+                        await.complete(null);
+                    }
                 }
             });
         }
 
-        return rv;
+        try {
+            await.get();
+        } catch (ExecutionException | InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
-    public void validateResponse(CompletableFuture<?> completableFuture, LayerResponse layer, long tileId) {
-        NodeResponse[] nodeResponses = layer.nodes;
-        WayResponse[] wayResponses = layer.ways;
+    public void validateResponse(LayerResponse layerResponse, long tileId) {
+        Log.d(TAG, "layerResponse = " + layerResponse + " at titleId = " + tileId);
+        NodeResponse[] nodeResponses = layerResponse.nodes;
+        WayResponse[] wayResponses = layerResponse.ways;
 
         HashMap<Long, Node> nodeMap = new HashMap<>(nodeResponses.length);
         for (NodeResponse nodeResponse : nodeResponses) {
             nodeMap.put(nodeResponse.id, new Node(nodeResponse.lon, nodeResponse.lat));
         }
         HashMap<String, List<Way>> waysInLayer = new HashMap<>(layersMap.size());
-        List<WayEntity> wayEntities = new ArrayList<>();
+        List<WayEntity> wayEntities = new ArrayList<>(wayResponses.length);
         for (WayResponse wayResponse : wayResponses) {
             List<Node> wayNodes = new ArrayList<>(wayResponse.refs.length);
             boolean nodeNotFound = false;
             for (long nodeId : wayResponse.refs) {
                 Node node = nodeMap.get(nodeId);
                 if (node == null) {
-                    Log.e(TAG, "node not found: " + nodeId + ", skip way " + wayResponse.id);
+                    Log.w(TAG, "node not found: " + nodeId + ", skip way " + wayResponse.id);
                     nodeNotFound = true;
                     break;
                 }
@@ -290,42 +380,27 @@ public class MapView {
             }
         }
 
-        List<Future<?>> futures = new ArrayList<>(waysInLayer.size());
+        Future<?> rendering = THREAD_POOL_EXECUTOR.submit(() -> renderLayers(waysInLayer, tileId));
+        Future<?> inserting = THREAD_POOL_EXECUTOR.submit(() -> config.dbDao.insertWaysAndTile(wayEntities, new TileEntity(tileId)));
 
-        for (String layerName : waysInLayer.keySet()) {
-            Layer curLayer = layersMap.get(layerName);
-            List<Way> ways = waysInLayer.get(layerName);
-            if (curLayer == null || ways == null) {
-                Log.e(TAG, "layer not found: " + layerName);
-                continue;
-            }
-
-            Future<?> curFuture = THREAD_POOL_EXECUTOR.submit(() -> curLayer.addWays(ways, tileId));
-
-            futures.add(curFuture);
+        try {
+            rendering.get();
+            inserting.get();
+        } catch (ExecutionException | InterruptedException e) {
+            e.printStackTrace();
         }
+//        Log.d(TAG, "saved tileId = " + tileId);
+    }
 
-        THREAD_POOL_EXECUTOR.execute(() -> {
-//            Log.d(TAG, "waiting for futures.size() = " + futures.size() + ", tileId = " + tileId);
-            for (Future<?> future : futures) {
-                try {
-                    future.get();
-                } catch (InterruptedException | ExecutionException e) {
-                    e.printStackTrace();
-                }
-            }
-
-//            Log.d(TAG, "saving tileId = " + tileId);
-            for (String layerName : waysInLayer.keySet()) {
-                Layer curLayer = layersMap.get(layerName);
-                if (curLayer == null) {
-                    Log.e(TAG, "layer not found: " + layerName);
-                    continue;
-                }
-                curLayer.save();
-            }
-            completableFuture.complete(null);
-        });
+    private void drawUser() {
+        if (userLocationChanged) {
+            float scaled = CoordinateTransform.getScalePixel(config.getScaleDenominator()) * config.getLengthPerPixel();
+            ProjCoordinate p = CoordinateTransform.wgs84ToWebMercator(curLat, curLon);
+            Point userLocation = new Point((float) p.x, (float) p.y).transform(config.getOriginX(), config.getOriginY(), scaled);
+            userIcon.relocate(userLocation);
+            userLocationChanged = false;
+        }
+        userIcon.draw();
     }
 
     public void draw() {
@@ -337,5 +412,6 @@ public class MapView {
             }
             layer.draw();
         }
+        drawUser();
     }
 }

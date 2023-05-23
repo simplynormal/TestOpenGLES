@@ -1,16 +1,8 @@
 package com.hcmut.test.mapnik;
 
-import android.content.Context;
-import android.util.Log;
-
 import com.hcmut.test.mapnik.symbolizer.LineSymbolizer;
 import com.hcmut.test.mapnik.symbolizer.PolygonSymbolizer;
 import com.hcmut.test.mapnik.symbolizer.TextSymbolizer;
-import com.hcmut.test.osm.Node;
-import com.hcmut.test.osm.Way;
-import com.hcmut.test.remote.LayerResponse;
-import com.hcmut.test.remote.NodeResponse;
-import com.hcmut.test.remote.WayResponse;
 import com.hcmut.test.utils.Config;
 
 import org.xmlpull.v1.XmlPullParser;
@@ -47,14 +39,10 @@ public class StyleParser {
             Layer layerParent = null;
             Style styleParent = null;
             Rule ruleParent = null;
-            String srs = null;
             while (eventType != XmlPullParser.END_DOCUMENT) {
                 String name = xpp.getName();
                 if (eventType == XmlPullParser.START_TAG) {
                     switch (name) {
-                        case "Map":
-                            srs = xpp.getAttributeValue(null, "srs");
-                            break;
                         case "Layer":
                             layerParent = new Layer(config, xpp.getAttributeValue(null, "name"));
                             break;
