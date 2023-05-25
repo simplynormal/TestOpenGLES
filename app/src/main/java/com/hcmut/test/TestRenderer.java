@@ -161,19 +161,28 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
     void transformOrigin(List<Point> worldQuad) {
         float scaled = CoordinateTransform.getScalePixel(config.getScaleDenominator()) * config.getLengthPerPixel();
+        Point user = screenToWorld(List.of(new Point(0, -0.3f))).get(0);
 
+        float x = user.x / scaled + config.getOriginX();
+        float y = user.y / scaled + config.getOriginY();
         float bboxMinX = worldQuad.get(0).x / scaled + config.getOriginX();
         float bboxMinY = worldQuad.get(0).y / scaled + config.getOriginY();
         float bboxMaxX = worldQuad.get(3).x / scaled + config.getOriginX();
         float bboxMaxY = worldQuad.get(3).y / scaled + config.getOriginY();
-        ProjCoordinate transformedPoint = CoordinateTransform.webMercatorToWgs84(bboxMinX, bboxMinY);
+
+        ProjCoordinate transformedPoint = CoordinateTransform.webMercatorToWgs84(x, y);
+        float curLon = (float) transformedPoint.x;
+        float curLat = (float) transformedPoint.y;
+        transformedPoint = CoordinateTransform.webMercatorToWgs84(bboxMinX, bboxMinY);
         Point bboxMin = new Point((float) transformedPoint.x, (float) transformedPoint.y);
         transformedPoint = CoordinateTransform.webMercatorToWgs84(bboxMaxX, bboxMaxY);
         Point bboxMax = new Point((float) transformedPoint.x, (float) transformedPoint.y);
         float radius = bboxMin.distance(bboxMax) / 2;
-//        Log.d(TAG, "transformOrigin: " + curLon + ", " + curLat + ", " + bboxMin + ", " + bboxMax + ", " + radius);
+        Log.d(TAG, "transformOrigin: " + curLon + ", " + curLat + ", " + radius);
 
-        mapView.setCurLocation((float) this.curLon, (float) this.curLat, radius);
+
+//        userIcon.relocate(new Point(user.x, user.y));
+        mapView.setCurLocation(curLon, curLat, radius);
     }
 
     void onTransform(Config config, Set<Config.Property> properties) {

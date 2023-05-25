@@ -168,7 +168,7 @@ public class MapView {
         curLat = lat;
 
         if (radius > 0) {
-            THREAD_POOL_EXECUTOR.execute(() -> {
+            debounce.debounce(() -> {
                 HashSet<Long> possibleTiles = getTileIds(lon, lat, radius, 0);
                 Log.d(TAG, "radius: " + radius + ", possibleTiles.size(): " + possibleTiles.size());
                 request(possibleTiles);

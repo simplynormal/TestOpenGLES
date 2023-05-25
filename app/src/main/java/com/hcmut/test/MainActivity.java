@@ -147,17 +147,17 @@ public class MainActivity extends Activity {
 //        };
 //
 //        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper());
-        final int[] locationIndex = {0};
-        new Timer().schedule(new TimerTask() {
-            @Override
-            public void run() {
-                // cycle through locations
-                Location location = NavTest.locations.get(locationIndex[0]);
-                locationIndex[0] = (locationIndex[0] + 1) % NavTest.locations.size();
-                Log.v(TAG, "Locations: " + location);
-                testRenderer.onLocationChange(location);
-            }
-        }, 5000, 1000);
+//        final int[] locationIndex = {0};
+//        new Timer().schedule(new TimerTask() {
+//            @Override
+//            public void run() {
+//                // cycle through locations
+//                Location location = NavTest.locations.get(locationIndex[0]);
+//                locationIndex[0] = (locationIndex[0] + 1) % NavTest.locations.size();
+//                Log.v(TAG, "Locations: " + location);
+//                testRenderer.onLocationChange(location);
+//            }
+//        }, 5000, 1000);
     }
 
     @Override
