@@ -49,6 +49,13 @@ public class Point {
         return new Point(x * scale, y * scale, z * scale);
     }
 
+    public Point rotateDeg(float angle) {
+        double rad = Math.toRadians(angle);
+        float cos = (float) Math.cos(rad);
+        float sin = (float) Math.sin(rad);
+        return new Point(x * cos - y * sin, x * sin + y * cos, z);
+    }
+
     public Point transform(float originX, float originY, float scale) {
         return new Point((x - originX) * scale, (y - originY) * scale, z);
     }

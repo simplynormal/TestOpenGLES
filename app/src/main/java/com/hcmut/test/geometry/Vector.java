@@ -90,6 +90,10 @@ public class Vector {
         );
     }
 
+    public Vector rotateDeg(float angle) {
+        return this.rotate(angle * (float) Math.PI / 180);
+    }
+
     public Vector orthogonal2d() {
         return new Vector(-this.y, this.x, this.z);
     }

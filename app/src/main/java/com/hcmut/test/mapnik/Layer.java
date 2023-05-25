@@ -96,7 +96,7 @@ public class Layer {
                 }
             }
         } catch (InterruptedException e) {
-            Log.e("Layer", "removeWays: ", e);
+            Log.e("Layer", "addWays: ", e);
         } finally {
             saveLock.unlock();
         }
@@ -221,7 +221,7 @@ public class Layer {
 //            }
             drawingSymMetasMap = Collections.synchronizedMap(new HashMap<>(symMetaMap));
         } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            Log.e("Layer", "save: ", e);
         } finally {
             isSaving = false;
             saveFinished.signalAll();

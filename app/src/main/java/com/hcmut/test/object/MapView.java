@@ -59,23 +59,22 @@ public class MapView {
             60L,
             TimeUnit.SECONDS,
             new LinkedBlockingQueue<>());
-    private static final float USER_RADIUS_BUFFER = 1.5f;
+    private static final float USER_RADIUS_BUFFER = 1.2f;
+    private static final float LAT_CHANGE_THRESHOLD = 0.0001f;
+    private static final float LON_CHANGE_THRESHOLD = 0.0001f;
     private final ReentrantLock lock = new ReentrantLock();
     private final HashMap<String, Layer> layersMap = new HashMap<>(78);
     private List<Layer> layersOrder;
     private final Config config;
     private final Nav nav;
-    private final UserIcon userIcon;
     private float curLon = 0;
     private float curLat = 0;
     private HashSet<Long> curTileIds = new HashSet<>(0);
     private final Debounce debounce = new Debounce(1000);
-    private boolean userLocationChanged = false;
 
     public MapView(Config config) {
         this.config = config;
         nav = new Nav(config);
-        userIcon = new UserIcon(config, new Point(0, 0));
     }
 
     public void setLayers(List<Layer> layers) {
@@ -152,18 +151,29 @@ public class MapView {
     }
 
     public void setCurLocation(float lon, float lat, float radius) {
-        if (curLon == 0 && BuildConfig.DEBUG) {
-            config.dbDao.clearAll();
+//        if (curLon == 0 && BuildConfig.DEBUG) {
+//            config.dbDao.clearAll();
+//        }
+
+        if (layersMap.isEmpty()) {
+            Log.w(TAG, "layersMap is empty");
+            return;
         }
 
-        userLocationChanged = true;
+        if (Math.abs(curLon - lon) < LON_CHANGE_THRESHOLD && Math.abs(curLat - lat) < LAT_CHANGE_THRESHOLD) {
+            return;
+        }
+
         curLon = lon;
         curLat = lat;
-        debounce.debounce(() -> {
-            HashSet<Long> possibleTiles = getTileIds(lon, lat, radius, 0);
-            Log.d(TAG, "radius: " + radius + ", possibleTiles.size(): " + possibleTiles.size());
-            request(possibleTiles);
-        });
+
+        if (radius > 0) {
+            THREAD_POOL_EXECUTOR.execute(() -> {
+                HashSet<Long> possibleTiles = getTileIds(lon, lat, radius, 0);
+                Log.d(TAG, "radius: " + radius + ", possibleTiles.size(): " + possibleTiles.size());
+                request(possibleTiles);
+            });
+        }
     }
 
     public void setRoute(double lon, double lat, double destLon, double destLat) {
@@ -190,8 +200,9 @@ public class MapView {
     }
 
     void request(HashSet<Long> possibleTiles) {
+        Log.d(TAG, "request: " + possibleTiles.size());
         lock.lock();
-        if (possibleTiles == null || possibleTiles.size() == 0) {
+        if (possibleTiles.size() == 0) {
             return;
         }
 
@@ -232,6 +243,7 @@ public class MapView {
                 future.get();
             } catch (ExecutionException | InterruptedException e) {
                 e.printStackTrace();
+                Log.e(TAG, "InterruptedException occurred: " + e.getMessage());
             }
         }
     }
@@ -239,17 +251,19 @@ public class MapView {
     private void renderLayers(HashMap<String, List<Way>> waysInLayer, long tileId) {
         List<Future<?>> futures = new ArrayList<>(waysInLayer.size());
 
+        HashMap<Future<?>, String> futureLayerMap = new HashMap<>(waysInLayer.size());
         for (String layerName : waysInLayer.keySet()) {
             Layer curLayer = layersMap.get(layerName);
             List<Way> ways = waysInLayer.get(layerName);
             if (curLayer == null || ways == null) {
-                Log.e(TAG, "layer not found: " + layerName);
+                Log.e(TAG, "layer not found: " + layerName + ", ways: " + (ways == null ? null : ways.size()));
                 continue;
             }
 
             Future<?> curFuture = THREAD_POOL_EXECUTOR.submit(() -> curLayer.addWays(ways, tileId));
 
             futures.add(curFuture);
+            futureLayerMap.put(curFuture, layerName);
         }
 
         for (Future<?> future : futures) {
@@ -257,6 +271,7 @@ public class MapView {
                 future.get();
             } catch (ExecutionException | InterruptedException e) {
                 e.printStackTrace();
+                Log.e(TAG, "InterruptedException occurred: " + e.getMessage()+ ", layer: " + futureLayerMap.get(future));
             }
         }
 
@@ -392,17 +407,6 @@ public class MapView {
 //        Log.d(TAG, "saved tileId = " + tileId);
     }
 
-    private void drawUser() {
-        if (userLocationChanged) {
-            float scaled = CoordinateTransform.getScalePixel(config.getScaleDenominator()) * config.getLengthPerPixel();
-            ProjCoordinate p = CoordinateTransform.wgs84ToWebMercator(curLat, curLon);
-            Point userLocation = new Point((float) p.x, (float) p.y).transform(config.getOriginX(), config.getOriginY(), scaled);
-            userIcon.relocate(userLocation);
-            userLocationChanged = false;
-        }
-        userIcon.draw();
-    }
-
     public void draw() {
         boolean navDrawn = false;
         for (Layer layer : layersOrder) {
@@ -412,6 +416,5 @@ public class MapView {
             }
             layer.draw();
         }
-        drawUser();
     }
 }
