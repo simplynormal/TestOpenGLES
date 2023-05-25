@@ -1,14 +1,15 @@
 package com.hcmut.test.algorithm;
 
 import android.location.Location;
+import android.util.Pair;
 
 import java.util.List;
 
 public class Navigation {
-    public static boolean isLocationNearPolyline(Location location, List<Location> polyline, double bufferDistanceInMeters) {
-        for (int i = 0; i < polyline.size() - 1; i++) {
-            Location pathStart = polyline.get(i);
-            Location pathEnd = polyline.get(i + 1);
+    public static boolean isLocationNearPolyline(Location location, List<Pair<Location, Location>> polyline, double bufferDistanceInMeters) {
+        for (Pair<Location, Location> pair : polyline) {
+            Location pathStart = pair.first;
+            Location pathEnd = pair.second;
 
             // Check if the location is near this segment of the polyline
             if (isLocationNearPath(location, pathStart, pathEnd, bufferDistanceInMeters)) {

@@ -38,7 +38,7 @@ public class RetrofitClient {
         okHttpClient.readTimeout(30000, TimeUnit.MILLISECONDS);
         okHttpClient.connectTimeout(30000, TimeUnit.MILLISECONDS);
         okHttpClient.callTimeout(30000, TimeUnit.MILLISECONDS);
-//        okHttpClient.addInterceptor(logging);
+        okHttpClient.addInterceptor(logging);
 
         return new Retrofit.Builder()
                 .addConverterFactory(GsonConverterFactory.create())

@@ -127,26 +127,27 @@ public class MainActivity extends Activity {
         }
         setContentView(mGLSurfaceView);
 
-//        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
-//        LocationRequest locationRequest = new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000)
-//                .build();
-//
-//        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-//            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
-//            return;
-//        }
-//
-//        LocationCallback locationCallback = new LocationCallback() {
-//            @Override
-//            public void onLocationResult(@NonNull LocationResult locationResult) {
-//                Log.v(TAG, "Locations: " + locationResult.getLocations());
-//                Location location = locationResult.getLocations().get(0);
-//                testRenderer.onLocationChange(location);
-//            }
-//        };
-//
+        LocationRequest locationRequest = new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000)
+                .build();
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+            return;
+        }
+
+        LocationCallback locationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(@NonNull LocationResult locationResult) {
+                Log.v(TAG, "Locations: " + locationResult.getLocations());
+                Location location = locationResult.getLocations().get(0);
+                testRenderer.onLocationChange(location);
+            }
+        };
+
 //        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper());
+
         final int[] locationIndex = {0};
         new Timer().schedule(new TimerTask() {
             @Override
@@ -157,7 +158,7 @@ public class MainActivity extends Activity {
                 Log.v(TAG, "Locations: " + location);
                 testRenderer.onLocationChange(location);
             }
-        }, 5000, 1000);
+        }, 5000, 2000);
     }
 
     @Override

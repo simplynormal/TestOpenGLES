@@ -1,6 +1,7 @@
 package com.hcmut.test.object;
 
 import android.annotation.SuppressLint;
+import android.location.Location;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -59,7 +60,7 @@ public class MapView {
             60L,
             TimeUnit.SECONDS,
             new LinkedBlockingQueue<>());
-    private static final float USER_RADIUS_BUFFER = 1.2f;
+    private static final float USER_RADIUS_BUFFER = 1.1f;
     private static final float LAT_CHANGE_THRESHOLD = 0.0001f;
     private static final float LON_CHANGE_THRESHOLD = 0.0001f;
     private final ReentrantLock lock = new ReentrantLock();
@@ -67,14 +68,17 @@ public class MapView {
     private List<Layer> layersOrder;
     private final Config config;
     private final Nav nav;
-    private float curLon = 0;
-    private float curLat = 0;
+    private double curLon = 0;
+    private double curLat = 0;
     private HashSet<Long> curTileIds = new HashSet<>(0);
-    private final Debounce debounce = new Debounce(1000);
+    private final Debounce debounce = new Debounce(500);
 
-    public MapView(Config config) {
+    public MapView(Config config, double destLon, double destLat) {
         this.config = config;
-        nav = new Nav(config);
+        nav = new Nav(config, new Location("dest") {{
+            setLongitude(destLon);
+            setLatitude(destLat);
+        }});
     }
 
     public void setLayers(List<Layer> layers) {
@@ -94,7 +98,7 @@ public class MapView {
         return curPoint.distance(bboxCenter) < radius * USER_RADIUS_BUFFER + bboxRadius;
     }
 
-    private HashSet<Long> getTileIds(float lon, float lat, float radius, int curLevel) {
+    private HashSet<Long> getTileIds(double lon, double lat, float radius, int curLevel) {
         assert curLevel >= 0;
         long tileId = TileSystem.getTileId(lon, lat);
         int n = 2 * curLevel + 1;
@@ -105,7 +109,7 @@ public class MapView {
             return rv;
         }
 
-        Point curPoint = new Point(lon, lat);
+        Point curPoint = new Point((float) lon, (float) lat);
         boolean atLeastOne = false;
 
         int startCol = -curLevel;
@@ -151,14 +155,26 @@ public class MapView {
     }
 
     public void setCurLocation(float lon, float lat, float radius) {
+        setCurLocation(new Location("") {{
+            setLongitude(lon);
+            setLatitude(lat);
+        }}, radius);
+    }
+
+    public void setCurLocation(Location location, float radius) {
 //        if (curLon == 0 && BuildConfig.DEBUG) {
 //            config.dbDao.clearAll();
 //        }
+
+        nav.setCurLocation(location);
 
         if (layersMap.isEmpty()) {
             Log.w(TAG, "layersMap is empty");
             return;
         }
+
+        double lon = location.getLongitude();
+        double lat = location.getLatitude();
 
         if (Math.abs(curLon - lon) < LON_CHANGE_THRESHOLD && Math.abs(curLat - lat) < LAT_CHANGE_THRESHOLD) {
             return;
@@ -168,7 +184,7 @@ public class MapView {
         curLat = lat;
 
         if (radius > 0) {
-            THREAD_POOL_EXECUTOR.execute(() -> {
+            debounce.debounce(() -> {
                 HashSet<Long> possibleTiles = getTileIds(lon, lat, radius, 0);
                 Log.d(TAG, "radius: " + radius + ", possibleTiles.size(): " + possibleTiles.size());
                 request(possibleTiles);
@@ -176,32 +192,13 @@ public class MapView {
         }
     }
 
-    public void setRoute(double lon, double lat, double destLon, double destLat) {
-        APIService apiService = RetrofitClient.getApiService();
-        apiService.getFindDirect(lat, lon, destLat, destLon, "time").enqueue(new Callback<>() {
-            @Override
-            public void onResponse(@NonNull Call<BaseResponse<List<DirectResponse>>> call, @NonNull Response<BaseResponse<List<DirectResponse>>> response) {
-                if (response.isSuccessful()) {
-                    assert response.body() != null;
-                    List<DirectResponse> directResponses = response.body().getData();
-                    if (directResponses != null && directResponses.size() > 0) {
-                        DirectResponse directResponse = directResponses.get(0);
-                        THREAD_POOL_EXECUTOR.execute(() -> nav.setRoute(directResponse));
-                    }
-                }
-            }
-
-            @Override
-            public void onFailure(@NonNull Call<BaseResponse<List<DirectResponse>>> call, Throwable t) {
-                Log.e(TAG, "onFailure: ", t);
-            }
-        });
-
-    }
+//    public void setRoute(double lon, double lat, double destLon, double destLat) {
+//        nav.setRoute(lon, lat, destLon, destLat);
+//    }
 
     void request(HashSet<Long> possibleTiles) {
-        Log.d(TAG, "request: " + possibleTiles.size());
         lock.lock();
+        Log.d(TAG, "requesting: " + possibleTiles.size());
         if (possibleTiles.size() == 0) {
             return;
         }
@@ -266,13 +263,15 @@ public class MapView {
             futureLayerMap.put(curFuture, layerName);
         }
 
+        int i = 0;
         for (Future<?> future : futures) {
             try {
                 future.get();
             } catch (ExecutionException | InterruptedException e) {
                 e.printStackTrace();
-                Log.e(TAG, "InterruptedException occurred: " + e.getMessage()+ ", layer: " + futureLayerMap.get(future));
+                Log.e(TAG, "InterruptedException occurred: " + e.getMessage()+ ", layer: " + futureLayerMap.get(future) + ", i: " + i + ", futures.size(): " + futures.size());
             }
+            i++;
         }
 
         for (String layerName : waysInLayer.keySet()) {

@@ -4,13 +4,13 @@ public class TileSystem {
     public static final int ZOOM = 17;
     private static final long TWO_POWER_ZOOM = 1L << ZOOM;
 
-    public static long getTileId(float lon, float lat, int offsetX, int offsetY) {
+    public static long getTileId(double lon, double lat, int offsetX, int offsetY) {
         long tileX = (long) Math.floor(((lon + 180) / 360 * TWO_POWER_ZOOM)) + offsetX;
         long tileY = (long) Math.floor(((1 - Math.log(Math.tan(Math.toRadians(lat)) + 1 / Math.cos(Math.toRadians(lat))) / Math.PI) / 2 * TWO_POWER_ZOOM)) + offsetY;
         return (tileY << ZOOM) + tileX;
     }
 
-    public static long getTileId(float lon, float lat) {
+    public static long getTileId(double lon, double lat) {
         return getTileId(lon, lat, 0, 0);
     }
 

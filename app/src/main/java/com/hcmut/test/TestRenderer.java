@@ -47,18 +47,18 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     private final float[] modelViewMatrix = new float[16];
     private static final List<Point> SCREEN_QUAD = new ArrayList<>(4) {
         {
-            add(new Point(-0.98f, -0.98f));
-            add(new Point(0.98f, -0.98f));
-            add(new Point(-0.98f, 0.98f));
-            add(new Point(0.98f, 0.98f));
+            add(new Point(-1, -1));
+            add(new Point(1, -1));
+            add(new Point(-1, 1));
+            add(new Point(1, 1));
         }
     };
     private Point oldPos = null;
     private List<Point> oldPosList;
     private double curLon;
     private double curLat;
-    private double destLon;
-    private double destLat;
+    private final double destLon = 106.65451236069202;
+    private double destLat = 10.780349396189212;
     private final BezierCurveAnimation<TransformationAnimation> animation = new BezierCurveAnimation<>(TransformationAnimation::scale);
     private final UserIcon userIcon;
     private boolean userLocationChanged = false;
@@ -94,14 +94,14 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
     public TestRenderer(Context context) {
         config = new Config(context);
-        mapView = new MapView(config);
+        mapView = new MapView(config, destLon, destLat);
         userIcon = new UserIcon(config, new Point(0, 0));
     }
 
     private void initOpenGL() {
         int width = config.context.getResources().getDisplayMetrics().widthPixels;
         int height = config.context.getResources().getDisplayMetrics().heightPixels;
-        Matrix.frustumM(projectionMatrix, 0, -width / (float) height, width / (float) height, -1f, 1f, 1f, 15f);
+        Matrix.frustumM(projectionMatrix, 0, -width / (float) height, width / (float) height, -1f, 1f, 1f, 20f);
         Matrix.setLookAtM(modelViewMatrix, 0, 0f, -1.7f, 2f, 0f, 0, 0f, 0f, 1f, 0f);
         Matrix.translateM(modelViewMatrix, 0, modelViewMatrix, 0, 0, -1, 0);
         config.setWidthHeight(width, height);
@@ -114,9 +114,6 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
 //        float curLon = 106.65609;
 //        float curLat = 10.780013;
-
-        destLat = 10.780349396189212;
-        destLon = 106.65451236069202;
 
         config.setScaleDenominator(1000);
         config.setOriginFromWGS84((float) curLon, (float) curLat);
@@ -134,7 +131,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
         mapView.setLayers(styleParser.layers);
 
-        mapView.setRoute(curLon, curLat, destLon, destLat);
+//        mapView.setRoute(curLon, curLat, destLon, destLat);
     }
 
     @Override
@@ -151,7 +148,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     public void onSurfaceChanged(GL10 glUnused, int width, int height) {
         // Set the OpenGL viewport to fill the entire surface.
         GLES20.glViewport(0, 0, width, height);
-        Matrix.frustumM(projectionMatrix, 0, -width / (float) height, width / (float) height, -1f, 1f, 1f, 15f);
+        Matrix.frustumM(projectionMatrix, 0, -width / (float) height, width / (float) height, -1f, 1f, 1f, 20f);
         Matrix.setLookAtM(modelViewMatrix, 0, 0f, -1.7f, 2f, 0f, 0, 0f, 0f, 1f, 0f);
         Matrix.translateM(modelViewMatrix, 0, modelViewMatrix, 0, 0, -1, 0);
 
