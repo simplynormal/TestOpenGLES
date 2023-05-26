@@ -152,6 +152,7 @@ public class MainActivity extends Activity {
         new Timer().schedule(new TimerTask() {
             @Override
             public void run() {
+//                if (locationIndex[0] > 0) return;
                 // cycle through locations
                 Location location = NavTest.locations.get(locationIndex[0]);
                 locationIndex[0] = (locationIndex[0] + 1) % NavTest.locations.size();

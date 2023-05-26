@@ -60,8 +60,10 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     private final double destLon = 106.65451236069202;
     private double destLat = 10.780349396189212;
     private final BezierCurveAnimation<TransformationAnimation> animation = new BezierCurveAnimation<>(TransformationAnimation::scale);
+    private TransformationAnimation currentAnimation = null;
     private final UserIcon userIcon;
     private boolean userLocationChanged = false;
+    private boolean isNavFocus = true;
 
     private static class TransformationAnimation {
         public final float scale;
@@ -109,11 +111,14 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         config.setColorShaderProgram(new ColorShaderProgram(config, projectionMatrix, modelViewMatrix));
         config.setTextSymbShaderProgram(new TextSymbShaderProgram(config, projectionMatrix, modelViewMatrix));
 
-        curLon = 106.7265605;
-        curLat = 10.7294012;
+//        curLon = 106.7265605;
+//        curLat = 10.7294012;
 
-//        float curLon = 106.65609;
-//        float curLat = 10.780013;
+//        curLon = 106.72315;
+//        curLat = 10.7268;
+
+        curLon = NavTest.coords[1];
+        curLat = NavTest.coords[0];
 
         config.setScaleDenominator(1000);
         config.setOriginFromWGS84((float) curLon, (float) curLat);
@@ -203,36 +208,31 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         return config.getScale();
     }
 
-    private Vector moveTo(double lon, double lat, float rotation) {
+    private Vector moveTo(double lon, double lat) {
         float scaled = CoordinateTransform.getScalePixel(config.getScaleDenominator()) * config.getLengthPerPixel();
-        ProjCoordinate p = CoordinateTransform.wgs84ToWebMercator(curLat, curLon);
-        Point origin = new Point((float) p.x, (float) p.y).transform(config.getOriginX(), config.getOriginY(), scaled);
-        Log.w(TAG, "Origin: " + origin.rotateDeg(getRotation()).add(getTranslation()));
-        p = CoordinateTransform.wgs84ToWebMercator(lat, lon);
+        Point origin = new Point(0, 0);
+        ProjCoordinate p = CoordinateTransform.wgs84ToWebMercator(lat, lon);
         Point dest = new Point((float) p.x, (float) p.y).transform(config.getOriginX(), config.getOriginY(), scaled);
-        Vector cur = getTranslation();
-        Vector translation = new Vector(dest, origin);
-        return cur.add(translation);
+        return new Vector(dest, origin);
     }
 
     public void onLocationChange(Location location) {
         float rotation = location.hasBearing() ? location.getBearing() : getRotation();
 //        float rotation = getRotation();
-        Vector translation = moveTo(location.getLongitude(), location.getLatitude(), rotation);
+        Vector translation = moveTo(location.getLongitude(), location.getLatitude());
         Log.v(TAG, "onLocationChange: " + translation);
 
-        animation.start(
-                new TransformationAnimation(
-                        getScale(),
-                        getRotation(),
-                        getTranslation()
-                ),
-                new TransformationAnimation(
-                        getScale(),
-                        rotation,
-                        translation
-                )
-        );
+        currentAnimation = new TransformationAnimation(1, rotation, translation);
+        if (isNavFocus) {
+            animation.start(
+                    new TransformationAnimation(
+                            getScale(),
+                            getRotation(),
+                            getTranslation()
+                    ),
+                    currentAnimation
+            );
+        }
 
         curLon = location.getLongitude();
         curLat = location.getLatitude();
@@ -338,6 +338,7 @@ public class TestRenderer implements GLSurfaceView.Renderer {
 
     public void actionMove(float x, float y) {
         if (oldPos == null) return;
+        isNavFocus = false;
         Point newPos = pixelScreenToCoord(x, y);
         Log.d(TAG, "actionMove: " + newPos);
         Vector translation = new Vector(oldPos, newPos);
@@ -345,25 +346,30 @@ public class TestRenderer implements GLSurfaceView.Renderer {
         config.setTranslation(translation);
     }
 
+    private double lastActionUpTime = 0;
+    private Point lastActionUpPos = null;
+
     public void actionUp(float x, float y) {
-        if (oldPos == null) return;
-        Point newPos = pixelScreenToCoord(x, y);
-        Log.d(TAG, "actionMove: " + newPos);
-        Vector translation = new Vector(oldPos, newPos);
-        translation = translation.add(getTranslation());
-        animation.start(
-                new TransformationAnimation(
-                        getScale(),
-                        getRotation(),
-                        getTranslation()
-                ),
-                new TransformationAnimation(
-                        getScale(),
-                        getRotation(),
-                        translation
-                )
-        );
-        oldPos = null;
+        double curTime = System.currentTimeMillis();
+        Point curPos = new Point(x, y);
+
+        boolean isSamePos = lastActionUpPos != null && lastActionUpPos.distance(curPos) < 100;
+        if (isSamePos && curTime - lastActionUpTime < 200) {
+            isNavFocus = true;
+            Log.d(TAG, "actionUp currentAnimation: " + currentAnimation);
+            if (currentAnimation != null) {
+                animation.start(
+                        new TransformationAnimation(
+                                getScale(),
+                                getRotation(),
+                                getTranslation()
+                        ),
+                        currentAnimation
+                );
+            }
+        }
+        lastActionUpTime = curTime;
+        lastActionUpPos = curPos;
     }
 
     @SuppressLint("NewApi")
@@ -412,48 +418,6 @@ public class TestRenderer implements GLSurfaceView.Renderer {
     }
 
     public void actionPointerUp(List<Float> x, List<Float> y) {
-        if (x.size() != 2) return;
-        oldPos = null;
-        List<Point> newPosList = new ArrayList<>() {{
-            for (int i = 0; i < x.size(); i++) {
-                add(pixelScreenToCoord(x.get(i), y.get(i)));
-            }
-        }};
-
-        Point oldP1 = oldPosList.get(0);
-        Point oldP2 = oldPosList.get(1);
-        Point p1 = newPosList.get(0);
-        Point p2 = newPosList.get(1);
-        Point oldCenter = oldP1.midPoint(oldP2);
-        Point center = p1.midPoint(p2);
-
-        // Scale
-        float oldDistance = oldP1.distance(oldP2);
-        float newDistance = p1.distance(p2);
-        float scale = newDistance / oldDistance;
-
-        // Rotate
-        Vector vecX = new Vector(1, 0);
-        float oldAngle = new Vector(oldP1, oldP2).signedAngle(vecX);
-        float newAngle = new Vector(p1, p2).signedAngle(vecX);
-        float angle = (float) Math.toDegrees(oldAngle - newAngle);
-
-        // Translate
-        Vector translation = new Vector(oldCenter, center);
-
-//        config.setTransform(scale * getScale(), (angle + getRotation( + 360) % 360, translation.add(getTranslation());
-        animation.start(
-                new TransformationAnimation(
-                        getScale(),
-                        getRotation(),
-                        getTranslation()
-                ),
-                new TransformationAnimation(
-                        scale * getScale(),
-                        (angle + getRotation() + 360) % 360,
-                        translation.add(getTranslation())
-                )
-        );
     }
 
     private void drawUser() {

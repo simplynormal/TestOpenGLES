@@ -70,7 +70,7 @@ public class MapView {
     private final Nav nav;
     private double curLon = 0;
     private double curLat = 0;
-    private HashSet<Long> curTileIds = new HashSet<>(0);
+    private List<Long> curTileIds = new ArrayList<>(0);
     private final Debounce debounce = new Debounce(500);
 
     public MapView(Config config, double destLon, double destLat) {
@@ -98,11 +98,11 @@ public class MapView {
         return curPoint.distance(bboxCenter) < radius * USER_RADIUS_BUFFER + bboxRadius;
     }
 
-    private HashSet<Long> getTileIds(double lon, double lat, float radius, int curLevel) {
+    private List<Long> getTileIds(double lon, double lat, float radius, int curLevel) {
         assert curLevel >= 0;
         long tileId = TileSystem.getTileId(lon, lat);
         int n = 2 * curLevel + 1;
-        HashSet<Long> rv = new HashSet<>(n * n);
+        List<Long> rv = new ArrayList<>(n * n);
         if (curLevel == 0) {
             rv.add(tileId);
             rv.addAll(getTileIds(lon, lat, radius, curLevel + 1));
@@ -185,7 +185,7 @@ public class MapView {
 
         if (radius > 0) {
             debounce.debounce(() -> {
-                HashSet<Long> possibleTiles = getTileIds(lon, lat, radius, 0);
+                List<Long> possibleTiles = getTileIds(lon, lat, radius, 0);
                 Log.d(TAG, "radius: " + radius + ", possibleTiles.size(): " + possibleTiles.size());
                 request(possibleTiles);
             });
@@ -196,16 +196,16 @@ public class MapView {
 //        nav.setRoute(lon, lat, destLon, destLat);
 //    }
 
-    void request(HashSet<Long> possibleTiles) {
+    void request(List<Long> possibleTiles) {
         lock.lock();
         Log.d(TAG, "requesting: " + possibleTiles.size());
         if (possibleTiles.size() == 0) {
             return;
         }
 
-        HashSet<Long> diff = new HashSet<>(possibleTiles);
+        List<Long> diff = new ArrayList<>(possibleTiles);
         diff.removeAll(curTileIds);
-        HashSet<Long> removeTiles = new HashSet<>(curTileIds);
+        List<Long> removeTiles = new ArrayList<>(curTileIds);
         removeTiles.removeAll(possibleTiles);
 
         Log.d(TAG, "diff.size(): " + diff.size() + ", removeTiles.size(): " + removeTiles.size());
@@ -225,11 +225,11 @@ public class MapView {
         lock.unlock();
     }
 
-    private void removeTiles(HashSet<Long> removeTiles) {
+    private void removeTiles(List<Long> removeTiles) {
         List<Future<?>> futures = new ArrayList<>(layersOrder.size());
         for (Layer layer : layersOrder) {
             Future<?> curFuture = THREAD_POOL_EXECUTOR.submit(() -> {
-                layer.removeWays(removeTiles);
+                layer.removeWays(new HashSet<>(removeTiles));
                 layer.save();
             });
             futures.add(curFuture);
@@ -284,9 +284,9 @@ public class MapView {
         }
     }
 
-    private List<Long> requestLocal(HashSet<Long> tiles) {
+    private List<Long> requestLocal(List<Long> tiles) {
         DbDao dbDao = config.dbDao;
-        HashSet<Long> localTiles = new HashSet<>(dbDao.getAllTileIds(new ArrayList<>(tiles)));
+        List<Long> localTiles = dbDao.getAllTileIds(new ArrayList<>(tiles));
         if (localTiles.size() == 0) {
             return new ArrayList<>(tiles);
         }

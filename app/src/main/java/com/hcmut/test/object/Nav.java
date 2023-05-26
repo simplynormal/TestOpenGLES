@@ -7,6 +7,8 @@ import android.util.Pair;
 
 import androidx.annotation.NonNull;
 
+import com.hcmut.test.BuildConfig;
+import com.hcmut.test.algorithm.CoordinateTransform;
 import com.hcmut.test.algorithm.Navigation;
 import com.hcmut.test.mapnik.symbolizer.LineSymbolizer;
 import com.hcmut.test.mapnik.symbolizer.SymMeta;
@@ -30,13 +32,13 @@ import retrofit2.Response;
 @SuppressLint("NewApi")
 public class Nav {
     private static final String TAG = Nav.class.getSimpleName();
-    private static final float FILL_STROKE_WIDTH = 10;
-    private static final float CASE_STROKE_WIDTH = 14;
+    private static final float BUFFER_DISTANCE_TO_ACTUAL_SIZE_RATIO = 0.75f;
     private final Config config;
     private final Location destination;
     private final ReentrantLock lock = new ReentrantLock();
     private SymMeta symMeta;
-    private List<Pair<Location, Location>> route = new ArrayList<>(0);
+    private List<Coord> route = new ArrayList<>(0);
+    private boolean isRequestingRoute = false;
 
     public Nav(Config config, Location destination) {
         this.config = config;
@@ -45,9 +47,9 @@ public class Nav {
 
     public void setCurLocation(Location currentLocation) {
         lock.lock();
-        boolean isOnTrack = Navigation.isLocationNearPolyline(currentLocation, route, 30);
-        Log.d(TAG, "setCurrentLocation: isOnTrack = " + isOnTrack);
-        if (!isOnTrack) {
+        boolean isOnTrack = Navigation.isLocationNearPolyline(currentLocation, route);
+//        Log.d(TAG, "setCurrentLocation: isOnTrack = " + isOnTrack);
+        if (!isOnTrack && !isRequestingRoute) {
             requestRoute(currentLocation, destination);
         }
         lock.unlock();
@@ -55,6 +57,7 @@ public class Nav {
 
     private void requestRoute(Location source, Location destination) {
         Log.d(TAG, "Requesting route" + source + " -> " + destination);
+        isRequestingRoute = true;
         APIService apiService = RetrofitClient.getApiService();
         apiService.getFindDirect(source.getLatitude(), source.getLongitude(), destination.getLatitude(), destination.getLongitude(), "time").enqueue(new Callback<>() {
             @Override
@@ -67,45 +70,41 @@ public class Nav {
                         parseRoute(source, directResponse);
                     }
                 }
+                isRequestingRoute = false;
             }
 
             @Override
             public void onFailure(@NonNull Call<BaseResponse<List<DirectResponse>>> call, @NonNull Throwable t) {
                 Log.e(TAG, "onFailure: ", t);
+                isRequestingRoute = false;
             }
         });
     }
 
     private void parseRoute(Location source, DirectResponse directResponse) {
-        String fillStrokeWidth = String.valueOf(FILL_STROKE_WIDTH);
-        String caseStrokeWidth = String.valueOf(CASE_STROKE_WIDTH);
         SymMeta fillSymMeta = null;
         SymMeta caseSymMeta = null;
+        SymMeta bufferSymMeta = null;
         route = new ArrayList<>(directResponse.getCoords().size() + 1);
-        route.add(new Pair<>(
-                new Location("start") {{
-                    setLatitude(source.getLatitude());
-                    setLongitude(source.getLongitude());
-                }},
-                new Location("end") {{
-                    setLatitude(directResponse.getCoords().get(0).getLat());
-                    setLongitude(directResponse.getCoords().get(0).getLng());
-                }}
-        ));
+        route.add(new Coord() {{
+            setLat(source.getLatitude());
+            setLng(source.getLongitude());
+            setStreet(new SegmentStreet() {{
+                name = "Start";
+                type = "unclassified";
+            }});
+        }});
+        route.addAll(directResponse.getCoords());
         for (Coord coord : directResponse.getCoords()) {
             Node node = new Node((float) coord.getLng(), (float) coord.getLat());
             Node enode = new Node((float) coord.geteLng(), (float) coord.geteLat());
-            route.add(new Pair<>(
-                    new Location("start") {{
-                        setLatitude(coord.getLat());
-                        setLongitude(coord.getLng());
-                    }},
-                    new Location("end") {{
-                        setLatitude(coord.geteLat());
-                        setLongitude(coord.geteLng());
-                    }}
-            ));
             String color = coord.getStatus().color;
+            String type = coord.getStreet().type;
+            float scaled = CoordinateTransform.getScalePixel(config.getScaleDenominator());
+            double width = Navigation.bufferDistanceMap.getOrDefault(type, 5.0) * scaled * BUFFER_DISTANCE_TO_ACTUAL_SIZE_RATIO;
+
+            String fillStrokeWidth = String.valueOf(width);
+            String caseStrokeWidth = String.valueOf(width + 4);
 
             Way way = new Way(List.of(node, enode));
             LineSymbolizer fillLineSymbolizer = new LineSymbolizer(config, fillStrokeWidth, color, null, "butt", "round", null, null);
