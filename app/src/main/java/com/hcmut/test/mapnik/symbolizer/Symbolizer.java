@@ -1,5 +1,8 @@
 package com.hcmut.test.mapnik.symbolizer;
 
+import android.annotation.SuppressLint;
+
+import androidx.annotation.FloatRange;
 import androidx.annotation.NonNull;
 
 import com.hcmut.test.algorithm.CoordinateTransform;
@@ -11,7 +14,9 @@ import java.util.HashMap;
 
 public abstract class Symbolizer {
     protected Config config;
+
     abstract public SymMeta toDrawable(Way way, String layerName);
+
     @NonNull
     public abstract String toString();
 
@@ -73,5 +78,22 @@ public abstract class Symbolizer {
         colorVector[2] = Integer.parseInt(colorString.substring(5, 7), 16) / 255f;
         colorVector[3] = Integer.parseInt(colorString.substring(7, 9), 16) / 255f;
         return colorVector;
+    }
+
+
+    private static float[] darkenColor(float[] color, @FloatRange(from = 0.0, to = 1.0) float factor) {
+        float[] newColor = new float[4];
+        newColor[0] = color[0] * factor;
+        newColor[1] = color[1] * factor;
+        newColor[2] = color[2] * factor;
+        newColor[3] = color[3];
+        return newColor;
+    }
+
+    @SuppressLint("DefaultLocale")
+    public static String darkenColor(String colorString, float optionalOpacity, @FloatRange(from = 0.0, to = 1.0) float factor) {
+        float[] color = parseColorString(colorString, optionalOpacity);
+        float[] newColor = darkenColor(color, factor);
+        return String.format("rgba(%d, %d, %d, %f)", (int) (newColor[0] * 255), (int) (newColor[1] * 255), (int) (newColor[2] * 255), newColor[3]);
     }
 }

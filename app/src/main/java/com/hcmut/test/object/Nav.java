@@ -12,6 +12,7 @@ import com.hcmut.test.algorithm.CoordinateTransform;
 import com.hcmut.test.algorithm.Navigation;
 import com.hcmut.test.mapnik.symbolizer.LineSymbolizer;
 import com.hcmut.test.mapnik.symbolizer.SymMeta;
+import com.hcmut.test.mapnik.symbolizer.Symbolizer;
 import com.hcmut.test.osm.Node;
 import com.hcmut.test.osm.Way;
 import com.hcmut.test.remote.APIService;
@@ -108,7 +109,9 @@ public class Nav {
 
             Way way = new Way(List.of(node, enode));
             LineSymbolizer fillLineSymbolizer = new LineSymbolizer(config, fillStrokeWidth, color, null, "butt", "round", null, null);
-            LineSymbolizer caseLineSymbolizer = new LineSymbolizer(config, caseStrokeWidth, "#7092FF", null, "butt", "round", null, null);
+
+            String caseColor = Symbolizer.darkenColor(color, 1, 0.5f);
+            LineSymbolizer caseLineSymbolizer = new LineSymbolizer(config, caseStrokeWidth, caseColor, null, "butt", "round", null, null);
 
             SymMeta localFillSymMeta = fillLineSymbolizer.toDrawable(way, null);
             SymMeta localCaseSymMeta = caseLineSymbolizer.toDrawable(way, null);
